@@ -34,3 +34,40 @@ exports.registerHospital = async (req, res, next) => {
     next(error); // Handled by global error handler from #1
   }
 };
+
+// @desc    Verify hospital email
+// @route   GET /api/hospitals/verify-email/:token
+// @access  Public
+exports.verifyEmail = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    // In a real scenario, you'd verify a JWT or find by a specific token field.
+    // For this implementation, we assume the token identifies the hospital.
+    const hospital = await Hospital.findById(token);
+
+    if (!hospital) {
+      return res.status(404).json({
+        success: false,
+        message: 'Invalid verification link or hospital not found.'
+      });
+    }
+
+    if (hospital.isEmailVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is already verified.'
+      });
+    }
+
+    hospital.isEmailVerified = true;
+    await hospital.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Email verified successfully. You can now log in once approved by the admin.'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
