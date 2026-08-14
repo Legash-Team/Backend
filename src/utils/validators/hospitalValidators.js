@@ -9,7 +9,7 @@ const registerHospitalSchema = Joi.object({
   password: Joi.string().min(8).required()
     .messages({ 'string.min': 'Password must be at least 8 characters long' }),
   location: Joi.object({
-    coordinates: Joi.array().items(Joi.number()).length(2).required(),
+    coordinates: Joi.array().items(Joi.number()).length(2).required(), // [lng, lat]
     address: Joi.string().optional()
   }).required()
 });
