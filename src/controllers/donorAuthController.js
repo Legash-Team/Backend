@@ -60,7 +60,41 @@ async function verifyDonorOtp(req, res, next) {
   }
 }
 
+async function loginDonor(req, res, next) {
+  try {
+    const { phone, password } = req.body;
+
+    const donor = await Donor.findOne({ phone });
+    if (!donor) {
+      return res.status(401).json({ success: false, error: 'Invalid phone or password.' });
+    }
+
+    const valid = await comparePassword(password, donor.passwordHash);
+    if (!valid) {
+      return res.status(401).json({ success: false, error: 'Invalid phone or password.' });
+    }
+
+    if (!donor.phoneVerified) {
+      return res.status(401).json({
+        success: false,
+        error: 'Phone not verified. Please verify your phone number first.',
+      });
+    }
+
+    const token = generateToken({ id: donor._id, role: 'donor' });
+
+    res.status(200).json({
+      success: true,
+      token,
+      donor: { id: donor._id, name: donor.name, phone: donor.phone },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   registerDonor,
   verifyDonorOtp,
+  loginDonor,
 };

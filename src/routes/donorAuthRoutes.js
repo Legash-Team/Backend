@@ -56,4 +56,25 @@ router.post('/register', donorValidators.register, validateRequest, donorAuthCon
  */
 router.post('/verify-otp', donorValidators.verifyOtp, validateRequest, donorAuthController.verifyDonorOtp);
 
+/**
+ * @swagger
+ * /api/donor/login:
+ *   post:
+ *     summary: Login a verified donor
+ *     tags: [Donor]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               phone: { type: string }
+ *               password: { type: string }
+ *     responses:
+ *       200:
+ *         description: Login successful, returns JWT
+ */
+router.post('/login', donorValidators.login, validateRequest, donorAuthController.loginDonor);
+
 module.exports = router;
