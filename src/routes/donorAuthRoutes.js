@@ -77,4 +77,46 @@ router.post('/verify-otp', donorValidators.verifyOtp, validateRequest, donorAuth
  */
 router.post('/login', donorValidators.login, validateRequest, donorAuthController.loginDonor);
 
+/**
+ * @swagger
+ * /api/donor/forgot-password:
+ *   post:
+ *     summary: Request an OTP to reset a forgotten password
+ *     tags: [Donor]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               phone: { type: string }
+ *     responses:
+ *       200:
+ *         description: Always returns the same generic message
+ */
+router.post('/forgot-password', donorValidators.forgotPassword, validateRequest, donorAuthController.forgotDonorPassword);
+
+/**
+ * @swagger
+ * /api/donor/reset-password:
+ *   post:
+ *     summary: Reset a donor password with the OTP code
+ *     tags: [Donor]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               phone: { type: string }
+ *               code: { type: string }
+ *               newPassword: { type: string }
+ *     responses:
+ *       200:
+ *         description: Password reset successful
+ */
+router.post('/reset-password', donorValidators.resetPassword, validateRequest, donorAuthController.resetDonorPassword);
+
 module.exports = router;

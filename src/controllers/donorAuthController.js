@@ -93,8 +93,49 @@ async function loginDonor(req, res, next) {
   }
 }
 
+async function forgotDonorPassword(req, res, next) {
+  try {
+    const { phone } = req.body;
+
+    const donor = await Donor.findOne({ phone });
+    if (donor) {
+      await sendOtp(phone);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'If an account exists with that phone number, an OTP has been sent.',
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function resetDonorPassword(req, res, next) {
+  try {
+    const { phone, code, newPassword } = req.body;
+
+    const valid = await verifyOtp(phone, code);
+    if (!valid) {
+      return res.status(400).json({ success: false, error: 'Invalid or expired code.' });
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    await Donor.updateOne({ phone }, { passwordHash });
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset successful. You can now log in with your new password.',
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   registerDonor,
   verifyDonorOtp,
   loginDonor,
+  forgotDonorPassword,
+  resetDonorPassword,
 };
