@@ -1,7 +1,7 @@
 /// Everyone imports these two functions instead of calling bcrypt directly, so hashing stays
 // consistent across all three roles.
 
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 const SALT_ROUNDS = 10;
 

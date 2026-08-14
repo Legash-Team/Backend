@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const hospitalAuthController = require('../controllers/hospitalAuthController');
-const { validateHospitalRegistration } = require('../middleware/validators');
+const { validateHospitalRegistration } = require('../utils/validators/sharedValidators');
 const { registerHospital, verifyEmail } = require('../controllers/hospitalAuthController');
 
 // POST /api/hospitals/register

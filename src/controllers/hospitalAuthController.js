@@ -1,5 +1,5 @@
 const Hospital = require('../models/Hospital');
-const { hashPassword } = require('../utils/hashUtils'); // Shared utility from #1
+const { hashPassword } = require('../utils/hashPassword'); // Shared utility from #1
 const { sendVerificationEmail } = require('../services/emailService'); // Shared utility from #1
 
 exports.registerHospital = async (req, res, next) => {
@@ -20,16 +20,29 @@ exports.registerHospital = async (req, res, next) => {
       isApprovedByAdmin: false // Explicitly pending as per requirements
     });
 
-    await hospital.save();
+await hospital.save();
 
-    // Send verification email with a link
-    // The verification token logic is usually part of shared utilities (Issue #1)
-    await sendVerificationEmail(hospital.email, hospital._id);
+// Send verification email safely without crashing the request if SMTP fails
+const verificationLink = `http://localhost:3000/api/hospitals/verify-email/${hospital._id}`;
 
-    res.status(201).json({
-      message: "Hospital registered successfully. Please verify your email.",
-      hospitalId: hospital._id
-    });
+try {
+  if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example')) {
+    console.log(`\n📧 [EMAIL MOCK] Verification link for ${hospital.email}:`);
+    console.log(`👉 ${verificationLink}\n`);
+  } else {
+    await sendVerificationEmail(hospital.email, verificationLink);
+  }
+} catch (emailErr) {
+  console.warn('⚠️ SMTP Error - falling back to console log:');
+  console.log(`👉 Verification link: ${verificationLink}`);
+}
+
+res.status(201).json({
+  success: true,
+  message: "Hospital registered successfully. Please verify your email.",
+  hospitalId: hospital._id
+});
+
   } catch (error) {
     next(error); // Handled by global error handler from #1
   }
