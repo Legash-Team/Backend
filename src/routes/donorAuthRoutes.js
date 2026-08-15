@@ -6,7 +6,7 @@ const validateRequest = require('../middleware/validateRequest');
 
 /**
  * @swagger
- * /api/donor/register:
+ * /donor/register:
  *   post:
  *     summary: Register a donor account
  *     tags: [Donor]
@@ -37,7 +37,7 @@ router.post('/register', donorValidators.register, validateRequest, donorAuthCon
 
 /**
  * @swagger
- * /api/donor/verify-otp:
+ * /donor/verify-otp:
  *   post:
  *     summary: Verify donor phone with OTP
  *     tags: [Donor]
@@ -58,7 +58,7 @@ router.post('/verify-otp', donorValidators.verifyOtp, validateRequest, donorAuth
 
 /**
  * @swagger
- * /api/donor/login:
+ * /donor/login:
  *   post:
  *     summary: Login a verified donor
  *     tags: [Donor]
@@ -79,7 +79,7 @@ router.post('/login', donorValidators.login, validateRequest, donorAuthControlle
 
 /**
  * @swagger
- * /api/donor/forgot-password:
+ * /donor/forgot-password:
  *   post:
  *     summary: Request an OTP to reset a forgotten password
  *     tags: [Donor]
@@ -99,7 +99,7 @@ router.post('/forgot-password', donorValidators.forgotPassword, validateRequest,
 
 /**
  * @swagger
- * /api/donor/reset-password:
+ * /donor/reset-password:
  *   post:
  *     summary: Reset a donor password with the OTP code
  *     tags: [Donor]

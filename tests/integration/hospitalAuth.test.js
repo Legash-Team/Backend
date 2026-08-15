@@ -7,25 +7,26 @@ const Hospital = require('../../src/models/Hospital');
 
 const app = express();
 app.use(express.json());
-app.use('/api/hospitals', hospitalAuthRoutes);
+app.use('/api/hospital', hospitalAuthRoutes);
 app.use(errorHandler);
 
 describe('Integration Tests: Hospital Auth', () => {
   const validHospitalData = {
-    name: 'St. Paul Hospital',
+    hospitalName: 'St. Paul Hospital',
     email: 'contact@stpaul.edu.et',
     password: 'StrongPassword123!',
     phone: '+251911223344',
     licenseNumber: 'HOSP-ETH-789',
     location: {
-      coordinates: [38.75, 9.03],
-      address: 'Addis Ababa, Ethiopia'
-    }
+      lat: 9.03,
+      lng: 38.75
+    },
+    agreedToTerms: true
   };
 
-  test('POST /api/hospitals/register -> should register new hospital (201)', async () => {
+  test('POST /api/hospital/register -> should register new hospital (201)', async () => {
     const res = await request(app)
-      .post('/api/hospitals/register')
+      .post('/api/hospital/register')
       .send(validHospitalData);
 
     expect(res.statusCode).toBe(201);
@@ -34,35 +35,39 @@ describe('Integration Tests: Hospital Auth', () => {
     // Verify DB state
     const saved = await Hospital.findById(res.body.hospitalId);
     expect(saved).not.toBeNull();
-    expect(saved.isEmailVerified).toBe(false);
+    expect(saved.emailVerified).toBe(false);
     expect(saved.email).toBe('contact@stpaul.edu.et');
   });
 
-  test('POST /api/hospitals/register -> should fail validation on bad phone format (400)', async () => {
+  test('POST /api/hospital/register -> should fail validation on bad phone format (400)', async () => {
     const res = await request(app)
-      .post('/api/hospitals/register')
+      .post('/api/hospital/register')
       .send({ ...validHospitalData, phone: '0911223344' }); // Missing +251
 
     expect(res.statusCode).toBe(400);
     expect(res.body.success).toBe(false);
   });
 
-  test('GET /api/hospitals/verify-email/:token -> should verify hospital email (200)', async () => {
+  test('GET /api/hospital/verify-email?token=<token> -> should verify hospital email (200)', async () => {
     // 1. Create unverified hospital directly in DB
+    const verificationToken = 'test-token-123';
     const hospital = await Hospital.create({
       ...validHospitalData,
-      password: 'hashedpassword'
+      passwordHash: 'hashedpassword',
+      location: { type: 'Point', coordinates: [38.75, 9.03] }, // DB shape
+      verificationToken
     });
 
     // 2. Perform verification request
     const res = await request(app)
-      .get(`/api/hospitals/verify-email/${hospital._id}`);
+      .get(`/api/hospital/verify-email?token=${verificationToken}`);
 
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
 
     // 3. Confirm verified status in DB
     const updated = await Hospital.findById(hospital._id);
-    expect(updated.isEmailVerified).toBe(true);
+    expect(updated.emailVerified).toBe(true);
+    expect(updated.verificationToken).toBeNull();
   });
 });

@@ -1,47 +1,67 @@
+const crypto = require('crypto');
 const Hospital = require('../models/Hospital');
 const { hashPassword } = require('../utils/hashPassword'); // Shared utility from #1
 const { sendVerificationEmail } = require('../services/emailService'); // Shared utility from #1
 
 exports.registerHospital = async (req, res, next) => {
   try {
-    const { name, email, password, phone, licenseNumber, location } = req.body;
+    const { hospitalName, email, password, phone, licenseNumber, location, agreedToTerms } = req.body;
+
+    const existingEmail = await Hospital.findOne({ email });
+    if (existingEmail) {
+      return res.status(409).json({ success: false, error: 'A hospital with this email is already registered.' });
+    }
+
+    const existingPhone = await Hospital.findOne({ phone });
+    if (existingPhone) {
+      return res.status(409).json({ success: false, error: 'A hospital with this phone number is already registered.' });
+    }
+
+    const existingLicense = await Hospital.findOne({ licenseNumber });
+    if (existingLicense) {
+      return res.status(409).json({ success: false, error: 'A hospital with this license number is already registered.' });
+    }
 
     // Password hashing using shared utility
     const hashedPassword = await hashPassword(password);
+    const verificationToken = crypto.randomBytes(32).toString('hex');
 
     const hospital = new Hospital({
-      name,
+      hospitalName,
       email,
-      password: hashedPassword,
+      passwordHash: hashedPassword,
       phone,
       licenseNumber,
-      location,
-      isEmailVerified: false,
-      isApprovedByAdmin: false // Explicitly pending as per requirements
+      location: { type: 'Point', coordinates: [location.lng, location.lat] },
+      agreedToTerms,
+      emailVerified: false,
+      verificationStatus: 'pending',
+      verificationToken
     });
 
-await hospital.save();
+    await hospital.save();
 
-// Send verification email safely without crashing the request if SMTP fails
-const verificationLink = `http://localhost:3000/api/hospitals/verify-email/${hospital._id}`;
+    // Send verification email safely without crashing the request if SMTP fails
+    const verificationLink = `http://localhost:3000/api/hospital/verify-email?token=${verificationToken}`;
 
-try {
-  if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example')) {
-    console.log(`\n📧 [EMAIL MOCK] Verification link for ${hospital.email}:`);
-    console.log(`👉 ${verificationLink}\n`);
-  } else {
-    await sendVerificationEmail(hospital.email, verificationLink);
-  }
-} catch (emailErr) {
-  console.warn('⚠️ SMTP Error - falling back to console log:');
-  console.log(`👉 Verification link: ${verificationLink}`);
-}
+    try {
+      if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example')) {
+        console.log(`\n📧 [EMAIL MOCK] Verification link for ${hospital.email}:`);
+        console.log(`👉 ${verificationLink}\n`);
+      } else {
+        await sendVerificationEmail(hospital.email, verificationLink);
+        console.log(`✅ Verification email sent to ${hospital.email}`);
+      }
+    } catch (emailErr) {
+      console.warn('⚠️ SMTP Error - falling back to console log:');
+      console.log(`👉 Verification link: ${verificationLink}`);
+    }
 
-res.status(201).json({
-  success: true,
-  message: "Hospital registered successfully. Please verify your email.",
-  hospitalId: hospital._id
-});
+    res.status(201).json({
+      success: true,
+      message: "Registered. Check your email to verify your account. Your account will stay pending until Super Admin approves it.",
+      hospitalId: hospital._id
+    });
 
   } catch (error) {
     next(error); // Handled by global error handler from #1
@@ -49,36 +69,42 @@ res.status(201).json({
 };
 
 // @desc    Verify hospital email
-// @route   GET /api/hospitals/verify-email/:token
+// @route   GET /api/hospital/verify-email?token=<token>
 // @access  Public
 exports.verifyEmail = async (req, res, next) => {
   try {
-    const { token } = req.params;
+    const { token } = req.query;
 
-    // In a real scenario, you'd verify a JWT or find by a specific token field.
-    // For this implementation, we assume the token identifies the hospital.
-    const hospital = await Hospital.findById(token);
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token is required.'
+      });
+    }
+
+    const hospital = await Hospital.findOne({ verificationToken: token });
 
     if (!hospital) {
       return res.status(404).json({
         success: false,
-        message: 'Invalid verification link or hospital not found.'
+        error: 'Invalid verification link or hospital not found.'
       });
     }
 
-    if (hospital.isEmailVerified) {
+    if (hospital.emailVerified) {
       return res.status(400).json({
         success: false,
-        message: 'Email is already verified.'
+        error: 'Email is already verified.'
       });
     }
 
-    hospital.isEmailVerified = true;
+    hospital.emailVerified = true;
+    hospital.verificationToken = null;
     await hospital.save();
 
     res.status(200).json({
       success: true,
-      message: 'Email verified successfully. You can now log in once approved by the admin.'
+      message: 'Email verified successfully. You can now log in.'
     });
   } catch (error) {
     next(error);
