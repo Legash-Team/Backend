@@ -16,13 +16,14 @@ describe('Integration Tests: Shared Login (/api/auth/login)', () => {
   test('POST /api/auth/login -> should reject unverified hospital login (401)', async () => {
     const hashedPassword = await hashPassword('StrongPassword123!');
     await Hospital.create({
-      name: 'Unverified Hospital',
+      hospitalName: 'Unverified Hospital',
       email: 'unverified@hospital.org',
-      password: hashedPassword,
+      passwordHash: hashedPassword,
       phone: '+251911000001',
       licenseNumber: 'LIC-001',
-      location: { coordinates: [38.7, 9.0] },
-      isEmailVerified: false
+      location: { type: 'Point', coordinates: [38.7, 9.0] },
+      emailVerified: false,
+      agreedToTerms: true
     });
 
     const res = await request(app)
@@ -36,13 +37,14 @@ describe('Integration Tests: Shared Login (/api/auth/login)', () => {
   test('POST /api/auth/login -> should allow verified hospital login and return JWT (200)', async () => {
     const hashedPassword = await hashPassword('StrongPassword123!');
     await Hospital.create({
-      name: 'Verified Hospital',
+      hospitalName: 'Verified Hospital',
       email: 'verified@hospital.org',
-      password: hashedPassword,
+      passwordHash: hashedPassword,
       phone: '+251911000002',
       licenseNumber: 'LIC-002',
-      location: { coordinates: [38.7, 9.0] },
-      isEmailVerified: true
+      location: { type: 'Point', coordinates: [38.7, 9.0] },
+      emailVerified: true,
+      agreedToTerms: true
     });
 
     const res = await request(app)

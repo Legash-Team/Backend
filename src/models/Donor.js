@@ -16,6 +16,7 @@ const donorSchema = new mongoose.Schema({
   },
   dob: { type: Date },
   phoneVerified: { type: Boolean, default: false },
+  pushToken: { type: String, default: null },
   agreedToTerms: { type: Boolean, required: true },
   resetCode: { type: String, default: null },
   resetCodeExpiresAt: { type: Date, default: null },

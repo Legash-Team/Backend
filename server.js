@@ -10,23 +10,19 @@ const hospitalAuthRoutes = require('./src/routes/hospitalAuthRoutes');
 const sharedAuthRoutes = require('./src/routes/sharedAuthRoutes');
 
 const donorAuthRoutes = require('./src/routes/donorAuthRoutes');
-// const hospitalAuthRoutes = require('./src/routes/hospitalAuthRoutes');
-// const sharedAuthRoutes = require('./src/routes/sharedAuthRoutes');
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-app.use('/api/hospitals', hospitalAuthRoutes);
+app.use('/api/hospital', hospitalAuthRoutes);
 app.use('/api/auth', sharedAuthRoutes);
 
 app.get('/', (req, res) => res.json({ status: 'Legash API running' }));
 
 // Mount routes here, one line per person, added only when that person's file is ready:
 app.use('/api/donor', donorAuthRoutes);
-// app.use('/api/hospital', hospitalAuthRoutes);
-// app.use('/api/auth', sharedAuthRoutes);
 
 // Must stay LAST — after every route above.
 app.use(errorHandler);
