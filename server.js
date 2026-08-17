@@ -8,6 +8,8 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./src/config/swagger');
 const hospitalAuthRoutes = require('./src/routes/hospitalAuthRoutes');
 const sharedAuthRoutes = require('./src/routes/sharedAuthRoutes');
+const inventoryRoutes  = require('./src/routes/inventoryRoutes')
+
 
 // Add your line here once your routes file exists and is merged:
 // const donorAuthRoutes = require('./src/routes/donorAuthRoutes');
@@ -21,6 +23,7 @@ app.use(express.json());
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/hospitals', hospitalAuthRoutes);
 app.use('/api/auth', sharedAuthRoutes);
+app.use('/v1/inventory',inventoryRoutes);
 
 app.get('/', (req, res) => res.json({ status: 'Legash API running' }));
 
