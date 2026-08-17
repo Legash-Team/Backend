@@ -23,7 +23,16 @@ const bloodStockSchema = new mongoose.Schema({
     default: 0,
     min: 0
   }
-}, { _id: false });
+}, {
+  _id: false,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// ★ VIRTUAL FIELD: Automatically calculates total quantity (available + reserved)
+bloodStockSchema.virtual('quantity').get(function () {
+  return (this.availableUnits || 0) + (this.reservedUnits || 0);
+});
 
 const DEFAULT_BLOOD_STOCK = [
   { bloodType: 'A+', availableUnits: 0, reservedUnits: 0, minimumUnits: 0 },
