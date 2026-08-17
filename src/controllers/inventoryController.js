@@ -19,7 +19,7 @@ exports.getInventory = async (req, res, next) => {
   }
 };
 
-// @desc    Create / Update item in inventory
+// @desc    Create / Add / Update item in inventory
 // @route   POST /v1/inventory
 // @access  Private (Hospital)
 exports.createInventoryItem = async (req, res, next) => {
@@ -48,12 +48,13 @@ exports.createInventoryItem = async (req, res, next) => {
       });
     }
 
+    // Force Mongoose to register array modification
     hospital.markModified('bloodStock');
     await hospital.save();
 
     return res.status(201).json({
       success: true,
-      message: 'Inventory item saved to database successfully',
+      message: 'Inventory item saved successfully',
       data: {
         bloodType,
         availableUnits: Number(availableUnits),
@@ -103,7 +104,7 @@ exports.updateInventoryUnits = async (req, res, next) => {
   }
 };
 
-// @desc    Delete inventory line
+// @desc    Delete / Clear inventory line
 // @route   DELETE /v1/inventory/:blood_type
 // @access  Private (Hospital)
 exports.deleteInventoryLine = async (req, res, next) => {
@@ -145,7 +146,7 @@ exports.configureThresholds = async (req, res, next) => {
       thresholds.forEach(t => {
         const item = hospital.bloodStock.find(s => s.bloodType === t.bloodType);
         if (item) {
-          item.minimumUnits = t.minimumUnits;
+          item.minimumUnits = Number(t.minimumUnits);
         }
       });
       hospital.markModified('bloodStock');

@@ -17,18 +17,23 @@ const bloodStockSchema = new mongoose.Schema({
     required: true,
     min: 0,
     default: 0
+  },
+  minimumUnits: {
+    type: Number,
+    default: 0,
+    min: 0
   }
 }, { _id: false });
 
 const DEFAULT_BLOOD_STOCK = [
-  { bloodType: 'A+', availableUnits: 0, reservedUnits: 0 },
-  { bloodType: 'A-', availableUnits: 0, reservedUnits: 0 },
-  { bloodType: 'B+', availableUnits: 0, reservedUnits: 0 },
-  { bloodType: 'B-', availableUnits: 0, reservedUnits: 0 },
-  { bloodType: 'AB+', availableUnits: 0, reservedUnits: 0 },
-  { bloodType: 'AB-', availableUnits: 0, reservedUnits: 0 },
-  { bloodType: 'O+', availableUnits: 0, reservedUnits: 0 },
-  { bloodType: 'O-', availableUnits: 0, reservedUnits: 0 }
+  { bloodType: 'A+', availableUnits: 0, reservedUnits: 0, minimumUnits: 0 },
+  { bloodType: 'A-', availableUnits: 0, reservedUnits: 0, minimumUnits: 0 },
+  { bloodType: 'B+', availableUnits: 0, reservedUnits: 0, minimumUnits: 0 },
+  { bloodType: 'B-', availableUnits: 0, reservedUnits: 0, minimumUnits: 0 },
+  { bloodType: 'AB+', availableUnits: 0, reservedUnits: 0, minimumUnits: 0 },
+  { bloodType: 'AB-', availableUnits: 0, reservedUnits: 0, minimumUnits: 0 },
+  { bloodType: 'O+', availableUnits: 0, reservedUnits: 0, minimumUnits: 0 },
+  { bloodType: 'O-', availableUnits: 0, reservedUnits: 0, minimumUnits: 0 }
 ];
 
 const hospitalSchema = new mongoose.Schema({
