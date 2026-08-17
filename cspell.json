@@ -1,0 +1,39 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "legash",
+    "legashs",
+    "superadmin",
+    "superadmins",
+    "fayda",
+    "faydas",
+    "yared",
+    "tadesse",
+    "abera",
+    "addis",
+    "ababa",
+    "stpaul",
+    "ethiopian",
+    "ethiopia",
+    "ebtbs",
+    "bloodbank",
+    "redoc",
+    "stockout",
+    "xvcj",
+    "xrequestid",
+    "lng",
+    "lat",
+    "geojson",
+    "geojsonpoint"
+  ],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/package-lock.json",
+    "**/*.pdf",
+    "**/__pycache__/**",
+    "**/.git/**",
+    "**/coverage/**",
+    "**/*.log"
+  ]
+}
