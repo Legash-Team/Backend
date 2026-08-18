@@ -22,6 +22,8 @@ app.use('/api/auth', sharedAuthRoutes);
 app.get('/', (req, res) => res.json({ status: 'Legash API running' }));
 
 // Mount routes here, one line per person, added only when that person's file is ready:
+const bloodRequestRoutes = require('./src/routes/bloodRequestRoutes');
+app.use('/api/hospital/blood-requests', bloodRequestRoutes);
 app.use('/api/donor', donorAuthRoutes);
 
 // Must stay LAST — after every route above.
