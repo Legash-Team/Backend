@@ -1,0 +1,4 @@
+module.exports = {
+  REQUEST_AUTO_CLOSE_HOURS: 8,
+  DEFAULT_SEARCH_RADIUS_KM: 15,
+};

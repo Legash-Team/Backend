@@ -46,16 +46,22 @@ const DEFAULT_BLOOD_STOCK = [
 ];
 
 const hospitalSchema = new mongoose.Schema({
-  name: { type: String, required: true, trim: true },
+  hospitalName: { type: String, required: true, trim: true },
   licenseNumber: { type: String, required: true, unique: true },
   phone: { type: String, required: true, unique: true },
   email: { type: String, required: true, unique: true, lowercase: true },
-  password: { type: String, required: true },
+  passwordHash: { type: String, required: true },
   location: {
     type: { type: String, default: 'Point' },
     coordinates: { type: [Number], required: true },
     address: String
   },
+  emailVerified: { type: Boolean, default: false },
+  verificationStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  verificationToken: { type: String, default: null },
+  agreedToTerms: { type: Boolean, required: true },
+  resetCode: { type: String, default: null },
+  resetCodeExpiresAt: { type: Date, default: null },
   isEmailVerified: { type: Boolean, default: false },
   isApprovedByAdmin: { type: Boolean, default: false },
   bloodStock: {
