@@ -12,8 +12,7 @@ const bloodRequestSchema = new mongoose.Schema({
   closedReason: { type: String, enum: ['manual', 'auto-expired', null], default: null },
   closesAt: { type: Date, required: true },
   closedAt: { type: Date, default: null },
-  createdAt: { type: Date, default: Date.now },
-});
+}, { timestamps: true });
 
 bloodRequestSchema.index({ status: 1, closesAt: 1 });
 

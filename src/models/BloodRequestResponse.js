@@ -6,8 +6,9 @@ const bloodRequestResponseSchema = new mongoose.Schema({
   status: { type: String, enum: ['pending', 'accepted', 'denied'], default: 'pending' },
   notifiedAt: { type: Date, default: Date.now },
   respondedAt: { type: Date, default: null },
-});
+}, { timestamps: true });
 
 bloodRequestResponseSchema.index({ donor: 1, status: 1 });
+bloodRequestResponseSchema.index({ bloodRequest: 1, donor: 1 }, { unique: true });
 
 module.exports = mongoose.model('BloodRequestResponse', bloodRequestResponseSchema);
