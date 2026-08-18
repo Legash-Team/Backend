@@ -44,6 +44,7 @@ describe('Integration Tests: Shared Login (/api/auth/login)', () => {
       licenseNumber: 'LIC-002',
       location: { type: 'Point', coordinates: [38.7, 9.0] },
       emailVerified: true,
+      verificationStatus: 'approved',
       agreedToTerms: true
     });
 
@@ -55,6 +56,52 @@ describe('Integration Tests: Shared Login (/api/auth/login)', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.role).toBe('hospital');
     expect(res.body).toHaveProperty('token');
+  });
+
+  test('POST /api/auth/login -> should reject hospital login if verificationStatus is pending (401)', async () => {
+    const hashedPassword = await hashPassword('StrongPassword123!');
+    await Hospital.create({
+      hospitalName: 'Pending Hospital',
+      email: 'pending@hospital.org',
+      passwordHash: hashedPassword,
+      phone: '+251911000003',
+      licenseNumber: 'LIC-003',
+      location: { type: 'Point', coordinates: [38.7, 9.0] },
+      emailVerified: true,
+      verificationStatus: 'pending',
+      agreedToTerms: true
+    });
+
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'pending@hospital.org', password: 'StrongPassword123!' });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error).toBe('Your account is still pending Super Admin approval.');
+  });
+
+  test('POST /api/auth/login -> should reject hospital login if verificationStatus is rejected (401)', async () => {
+    const hashedPassword = await hashPassword('StrongPassword123!');
+    await Hospital.create({
+      hospitalName: 'Rejected Hospital',
+      email: 'rejected@hospital.org',
+      passwordHash: hashedPassword,
+      phone: '+251911000004',
+      licenseNumber: 'LIC-004',
+      location: { type: 'Point', coordinates: [38.7, 9.0] },
+      emailVerified: true,
+      verificationStatus: 'rejected',
+      agreedToTerms: true
+    });
+
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'rejected@hospital.org', password: 'StrongPassword123!' });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error).toBe('Your registration was not approved. Check your email for details.');
   });
 
   test('POST /api/auth/login -> should allow SuperAdmin login (200)', async () => {

@@ -31,6 +31,20 @@ exports.login = async (req, res, next) => {
         });
       }
 
+      // NEW — Sprint 2 approval gate
+      if (hospital.verificationStatus === 'pending') {
+        return res.status(401).json({
+          success: false,
+          error: 'Your account is still pending Super Admin approval.'
+        });
+      }
+      if (hospital.verificationStatus === 'rejected') {
+        return res.status(401).json({
+          success: false,
+          error: 'Your registration was not approved. Check your email for details.'
+        });
+      }
+
       // Check password
       const isMatch = await comparePassword(password, hospital.passwordHash);
       if (!isMatch) {
