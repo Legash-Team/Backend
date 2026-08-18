@@ -10,28 +10,6 @@ const validateRequest = require('../middleware/validateRequest');
  *   post:
  *     summary: Register a donor account
  *     tags: [Donor]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name: { type: string }
- *               password: { type: string }
- *               phone: { type: string }
- *               fin: { type: string }
- *               gender: { type: string, enum: [male, female] }
- *               bloodType: { type: string }
- *               location:
- *                 type: object
- *                 properties:
- *                   lat: { type: number }
- *                   lng: { type: number }
- *               agreedToTerms: { type: boolean }
- *     responses:
- *       201:
- *         description: Registered, OTP sent
  */
 router.post('/register', donorValidators.register, validateRequest, donorAuthController.registerDonor);
 
@@ -41,26 +19,14 @@ router.post('/register', donorValidators.register, validateRequest, donorAuthCon
  *   post:
  *     summary: Verify donor phone with OTP
  *     tags: [Donor]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               phone: { type: string }
- *               code: { type: string }
- *     responses:
- *       200:
- *         description: Phone verified
  */
 router.post('/verify-otp', donorValidators.verifyOtp, validateRequest, donorAuthController.verifyDonorOtp);
 
 /**
  * @swagger
- * /donor/login:
+ * /donor/resend-otp:
  *   post:
- *     summary: Login a verified donor
+ *     summary: Resend OTP for phone verification
  *     tags: [Donor]
  *     requestBody:
  *       required: true
@@ -70,10 +36,18 @@ router.post('/verify-otp', donorValidators.verifyOtp, validateRequest, donorAuth
  *             type: object
  *             properties:
  *               phone: { type: string }
- *               password: { type: string }
  *     responses:
  *       200:
- *         description: Login successful, returns JWT
+ *         description: A new OTP has been sent
+ */
+router.post('/resend-otp', donorValidators.resendOtp, validateRequest, donorAuthController.resendDonorOtp);
+
+/**
+ * @swagger
+ * /donor/login:
+ *   post:
+ *     summary: Login a verified donor
+ *     tags: [Donor]
  */
 router.post('/login', donorValidators.login, validateRequest, donorAuthController.loginDonor);
 
@@ -83,17 +57,6 @@ router.post('/login', donorValidators.login, validateRequest, donorAuthControlle
  *   post:
  *     summary: Request an OTP to reset a forgotten password
  *     tags: [Donor]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               phone: { type: string }
- *     responses:
- *       200:
- *         description: Always returns the same generic message
  */
 router.post('/forgot-password', donorValidators.forgotPassword, validateRequest, donorAuthController.forgotDonorPassword);
 
@@ -103,19 +66,6 @@ router.post('/forgot-password', donorValidators.forgotPassword, validateRequest,
  *   post:
  *     summary: Reset a donor password with the OTP code
  *     tags: [Donor]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               phone: { type: string }
- *               code: { type: string }
- *               newPassword: { type: string }
- *     responses:
- *       200:
- *         description: Password reset successful
  */
 router.post('/reset-password', donorValidators.resetPassword, validateRequest, donorAuthController.resetDonorPassword);
 

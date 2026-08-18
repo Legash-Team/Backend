@@ -38,6 +38,12 @@ exports.verifyOtp = [
     .withMessage('Code must be 6 digits.'),
 ];
 
+exports.resendOtp = [
+  body('phone')
+    .matches(PHONE_PATTERN)
+    .withMessage('Phone must be in +251 format.'),
+];
+
 exports.login = [
   body('phone')
     .matches(PHONE_PATTERN)

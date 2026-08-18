@@ -60,6 +60,39 @@ async function verifyDonorOtp(req, res, next) {
   }
 }
 
+// ★ NEW RESEND OTP CONTROLLER
+async function resendDonorOtp(req, res, next) {
+  try {
+    const { phone } = req.body;
+
+    const donor = await Donor.findOne({ phone });
+
+    // Anti-enumeration security: if donor does not exist, still return generic 200 message
+    if (!donor) {
+      return res.status(200).json({
+        success: true,
+        message: 'If an account exists with that phone number, an OTP has been sent.',
+      });
+    }
+
+    if (donor.phoneVerified) {
+      return res.status(400).json({
+        success: false,
+        error: 'Phone number is already verified.',
+      });
+    }
+
+    await sendOtp(phone);
+
+    res.status(200).json({
+      success: true,
+      message: 'A new OTP has been sent to your phone number.',
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function loginDonor(req, res, next) {
   try {
     const { phone, password } = req.body;
@@ -135,6 +168,7 @@ async function resetDonorPassword(req, res, next) {
 module.exports = {
   registerDonor,
   verifyDonorOtp,
+  resendDonorOtp, // ★ Exported
   loginDonor,
   forgotDonorPassword,
   resetDonorPassword,
