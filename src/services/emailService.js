@@ -37,4 +37,38 @@ async function sendPasswordResetEmail(toEmail, resetCode) {
   });
 }
 
-module.exports = { sendVerificationEmail, sendPasswordResetEmail };
+async function sendApprovalEmail(toEmail) {
+  if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example')) {
+    console.log(`\n📧 [EMAIL MOCK] Approval email for ${toEmail}:`);
+    console.log(`👉 Your Legash hospital account has been approved. You can now log in.\n`);
+    return;
+  }
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM,
+    to: toEmail,
+    subject: 'Legash Hospital Account Approved',
+    html: `<p>Your Legash hospital account has been approved. You can now log in.</p>`,
+  });
+}
+
+async function sendRejectionEmail(toEmail) {
+  if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example')) {
+    console.log(`\n📧 [EMAIL MOCK] Rejection email for ${toEmail}:`);
+    console.log(`👉 Your Legash hospital registration was not approved. You can submit an appeal or contact support.\n`);
+    return;
+  }
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM,
+    to: toEmail,
+    subject: 'Legash Hospital Registration Update',
+    html: `<p>Your Legash hospital registration was not approved.</p>
+           <p>If you believe this was an error, you can submit an appeal or contact support <a href="mailto:support@legash.com">here</a>.</p>`,
+  });
+}
+
+module.exports = {
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+  sendApprovalEmail,
+  sendRejectionEmail,
+};
