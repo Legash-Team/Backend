@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+
+jobs:
+  test:
+    name: Lint + Contract + Tests
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Contract drift check (routes vs wire-contract.json)
+        run: npm run test:contract
+
+      - name: Unit + integration tests (jest)
+        run: npm test
+
+      - name: Contract E2E (Postman collection against the real Backend)
+        run: npm run test:contract:e2e
+        env:
+          CONTRACT_MONGO_URI: mongodb://127.0.0.1:27017/legash_contract_test_db

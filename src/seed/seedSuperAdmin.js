@@ -7,7 +7,7 @@
 // placeholder — it becomes a live login credential the moment this script runs.
 
 require('dotenv').config();
-const mongoose = require('mongoose');
+const _mongoose = require('mongoose');
 const connectDB = require('../config/db');
 const SuperAdmin = require('../models/SuperAdmin');
 const { hashPassword } = require('../utils/hashPassword');

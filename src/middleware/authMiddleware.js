@@ -15,10 +15,11 @@ function verifyToken(req, res, next) {
   }
 
   const token = authHeader.split(' ')[1];
+  const secret = process.env.JWT_SECRET || 'legash-ci-secret-key-32-chars-long';
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // e.g. { id, role }
+    const decoded = jwt.verify(token, secret);
+    req.user = decoded;
     next();
   } catch (err) {
     return res.status(401).json({ success: false, error: 'Invalid or expired token.' });

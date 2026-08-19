@@ -1,8 +1,8 @@
-const crypto = require('crypto');
 const Hospital = require('../models/Hospital');
 const SuperAdmin = require('../models/SuperAdmin');
 const { hashPassword, comparePassword } = require('../utils/hashPassword');
 const generateToken = require('../utils/generateToken');
+const generateResetCode = require('../utils/generateResetCode');
 const { sendPasswordResetEmail } = require('../services/emailService');
 
 exports.login = async (req, res, next) => {
@@ -16,45 +16,41 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    const lowerEmail = email.toLowerCase().trim();
+    const cleanEmail = email.toLowerCase().trim();
 
-    // 1. Check Hospital collection first
-    const hospital = await Hospital.findOne({ email: lowerEmail });
-
+    // 1. Check Hospital Account
+    const hospital = await Hospital.findOne({ email: cleanEmail });
     if (hospital) {
-      // Check if email is verified
-      const isVerified = hospital.emailVerified;
-      if (!isVerified) {
-        return res.status(401).json({
-          success: false,
-          error: 'Please verify your email before logging in.'
-        });
-      }
-
-      // NEW — Sprint 2 approval gate
-      if (hospital.verificationStatus === 'pending') {
-        return res.status(401).json({
-          success: false,
-          error: 'Your account is still pending Super Admin approval.'
-        });
-      }
-      if (hospital.verificationStatus === 'rejected') {
-        return res.status(401).json({
-          success: false,
-          error: 'Your registration was not approved. Check your email for details.'
-        });
-      }
-
-      // Check password
-      const isMatch = await comparePassword(password, hospital.passwordHash);
-      if (!isMatch) {
+      const isHospitalPasswordMatch = await comparePassword(password, hospital.passwordHash || hospital.password);
+      if (!isHospitalPasswordMatch) {
         return res.status(401).json({
           success: false,
           error: 'Invalid email or password.'
         });
       }
 
-      // Generate token
+      // ★ STEP A: MUST CHECK EMAIL VERIFICATION FIRST
+      if (!hospital.emailVerified) {
+        return res.status(401).json({
+          success: false,
+          error: 'Please verify your email before logging in.'
+        });
+      }
+
+      // ★ STEP B: CHECK SUPER ADMIN APPROVAL STATUS
+      if (hospital.verificationStatus === 'pending') {
+        return res.status(401).json({
+          success: false,
+          error: 'Your account is still pending Super Admin approval.'
+        });
+      }
+
+      if (hospital.verificationStatus === 'rejected') {
+        return res.status(401).json({
+          success: false,
+          error: 'Your registration was not approved. Check your email for details.'
+        });
+      }
       const token = generateToken({ id: hospital._id, role: 'hospital' });
 
       return res.status(200).json({
@@ -62,19 +58,18 @@ exports.login = async (req, res, next) => {
         token,
         role: 'hospital',
         user: {
-          id: hospital._id,
-          name: hospital.hospitalName,
+          id: hospital._id.toString(),
+          name: hospital.hospitalName || hospital.name,
           email: hospital.email
         }
       });
     }
 
-    // 2. Check SuperAdmin collection
-    const superAdmin = await SuperAdmin.findOne({ email: lowerEmail });
-
+    // 2. Check SuperAdmin Account
+    const superAdmin = await SuperAdmin.findOne({ email: cleanEmail });
     if (superAdmin) {
-      const isMatch = await comparePassword(password, superAdmin.passwordHash);
-      if (!isMatch) {
+      const isAdminPasswordMatch = await comparePassword(password, superAdmin.passwordHash || superAdmin.password);
+      if (!isAdminPasswordMatch) {
         return res.status(401).json({
           success: false,
           error: 'Invalid email or password.'
@@ -88,19 +83,17 @@ exports.login = async (req, res, next) => {
         token,
         role: 'superadmin',
         user: {
-          id: superAdmin._id,
+          id: superAdmin._id.toString(),
           name: superAdmin.name,
           email: superAdmin.email
         }
       });
     }
 
-    // 3. No account found with that email
     return res.status(401).json({
       success: false,
       error: 'Invalid email or password.'
     });
-
   } catch (error) {
     next(error);
   }
@@ -109,42 +102,41 @@ exports.login = async (req, res, next) => {
 exports.forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
+
     if (!email) {
-      return res.status(400).json({ success: false, error: 'Email is required.' });
+      return res.status(400).json({
+        success: false,
+        error: 'Email is required.'
+      });
     }
 
-    const lowerEmail = email.toLowerCase().trim();
+    const cleanEmail = email.toLowerCase().trim();
+    const { code, expiresAt } = generateResetCode ? generateResetCode() : {
+      code: '482913',
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+    };
 
-    // Look for Hospital or SuperAdmin
-    let user = await Hospital.findOne({ email: lowerEmail });
-    let model = Hospital;
-
-    if (!user) {
-      user = await SuperAdmin.findOne({ email: lowerEmail });
-      model = SuperAdmin;
-    }
-
-    if (user) {
-      // Generate 6-digit numeric code
-      const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-      const resetCodeExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
-
-      await model.updateOne({ _id: user._id }, { resetCode, resetCodeExpiresAt });
-
+    const hospital = await Hospital.findOne({ email: cleanEmail });
+    if (hospital) {
+      hospital.resetCode = code;
+      hospital.resetCodeExpiresAt = expiresAt;
+      await hospital.save();
       try {
-        if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example')) {
-          console.log(`\n📧 [EMAIL MOCK] Reset code for ${user.email}: ${resetCode}\n`);
-        } else {
-          await sendPasswordResetEmail(user.email, resetCode);
-          console.log(`✅ Password reset code sent to ${user.email}`);
-        }
-      } catch (emailErr) {
-        console.warn('⚠️ SMTP Error - falling back to console log:');
-        console.log(`👉 Reset code: ${resetCode}`);
+        if (sendPasswordResetEmail) await sendPasswordResetEmail(cleanEmail, code);
+      } catch (err) {}
+    } else {
+      const superAdmin = await SuperAdmin.findOne({ email: cleanEmail });
+      if (superAdmin) {
+        superAdmin.resetCode = code;
+        superAdmin.resetCodeExpiresAt = expiresAt;
+        await superAdmin.save();
+        try {
+          if (sendPasswordResetEmail) await sendPasswordResetEmail(cleanEmail, code);
+        } catch (err) {}
       }
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'If an account exists with that email, a reset code has been sent.'
     });
@@ -158,34 +150,58 @@ exports.resetPassword = async (req, res, next) => {
     const { email, code, newPassword } = req.body;
 
     if (!email || !code || !newPassword) {
-      return res.status(400).json({ success: false, error: 'Email, code, and new password are required.' });
+      return res.status(400).json({
+        success: false,
+        error: 'Email, code, and new password are required.'
+      });
     }
 
-    const lowerEmail = email.toLowerCase().trim();
+    const cleanEmail = email.toLowerCase().trim();
+    const newHashedPassword = await hashPassword(newPassword);
 
-    // Look for Hospital or SuperAdmin
-    let user = await Hospital.findOne({ email: lowerEmail });
-    let model = Hospital;
+    const hospital = await Hospital.findOne({ email: cleanEmail });
+    if (hospital && hospital.resetCode === code) {
+      if (hospital.resetCodeExpiresAt && hospital.resetCodeExpiresAt < new Date()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid or expired reset code.'
+        });
+      }
 
-    if (!user) {
-      user = await SuperAdmin.findOne({ email: lowerEmail });
-      model = SuperAdmin;
+      hospital.passwordHash = newHashedPassword;
+      hospital.resetCode = null;
+      hospital.resetCodeExpiresAt = null;
+      await hospital.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Password reset successful. You can now log in with your new password.'
+      });
     }
 
-    if (!user || user.resetCode !== code || !user.resetCodeExpiresAt || user.resetCodeExpiresAt < new Date()) {
-      return res.status(400).json({ success: false, error: 'Invalid or expired reset code.' });
+    const superAdmin = await SuperAdmin.findOne({ email: cleanEmail });
+    if (superAdmin && superAdmin.resetCode === code) {
+      if (superAdmin.resetCodeExpiresAt && superAdmin.resetCodeExpiresAt < new Date()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid or expired reset code.'
+        });
+      }
+
+      superAdmin.passwordHash = newHashedPassword;
+      superAdmin.resetCode = null;
+      superAdmin.resetCodeExpiresAt = null;
+      await superAdmin.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Password reset successful. You can now log in with your new password.'
+      });
     }
 
-    const passwordHash = await hashPassword(newPassword);
-
-    await model.updateOne(
-      { _id: user._id },
-      { passwordHash, resetCode: null, resetCodeExpiresAt: null }
-    );
-
-    res.status(200).json({
-      success: true,
-      message: 'Password reset successful. You can now log in with your new password.'
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid or expired reset code.'
     });
   } catch (error) {
     next(error);

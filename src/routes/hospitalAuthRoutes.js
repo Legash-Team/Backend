@@ -45,5 +45,6 @@ router.post('/register', hospitalValidators.register, validateRequest, hospitalA
  *           type: string
  */
 router.get('/verify-email', hospitalAuthController.verifyEmail);
+router.get('/verify-email/:hospitalId', hospitalAuthController.verifyEmail);
 
 module.exports = router;

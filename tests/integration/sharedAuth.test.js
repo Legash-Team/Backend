@@ -56,6 +56,14 @@ describe('Integration Tests: Shared Login (/api/auth/login)', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.role).toBe('hospital');
     expect(res.body).toHaveProperty('token');
+    // Flat envelope contract: NO data wrapper, NO top-level hospitalId.
+    expect(res.body).not.toHaveProperty('data');
+    expect(res.body).not.toHaveProperty('hospitalId');
+    expect(res.body.user).toMatchObject({
+      id: expect.any(String),
+      name: 'Verified Hospital',
+      email: 'verified@hospital.org'
+    });
   });
 
   test('POST /api/auth/login -> should reject hospital login if verificationStatus is pending (401)', async () => {

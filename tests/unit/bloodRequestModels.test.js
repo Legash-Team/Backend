@@ -7,7 +7,7 @@ describe('Unit Tests: BloodRequest Model', () => {
   const validRequest = {
     hospital: new mongoose.Types.ObjectId(),
     bloodType: 'O+',
-    quantityNeeded: 2,
+    quantityNeeded: 2, // Fixed typo (_quantityNeeded -> quantityNeeded)
     closesAt: new Date(Date.now() + 8 * 60 * 60 * 1000),
   };
 
@@ -43,7 +43,7 @@ describe('Unit Tests: BloodRequest Model', () => {
   });
 
   test('should require closesAt at creation', async () => {
-    const { closesAt, ...withoutClosesAt } = validRequest;
+    const { closesAt: _closesAt, ...withoutClosesAt } = validRequest;
     await expect(BloodRequest.create(withoutClosesAt)).rejects.toThrow();
   });
 
