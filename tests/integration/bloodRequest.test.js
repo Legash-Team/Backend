@@ -157,4 +157,59 @@ describe('Blood Request Lifecycle Integration', () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('This request is already closed.');
   });
+
+  describe('Validation and Authorization (400/403)', () => {
+    it('returns 403 Forbidden when a Donor tries to access hospital routes', async () => {
+      // POST /
+      let res = await request(app)
+        .post('/api/hospital/blood-requests')
+        .set('Authorization', `Bearer ${donor1Token}`)
+        .send({ bloodType: 'O+', quantityNeeded: 2 });
+      expect(res.status).toBe(403);
+
+      // GET /
+      res = await request(app)
+        .get('/api/hospital/blood-requests')
+        .set('Authorization', `Bearer ${donor1Token}`);
+      expect(res.status).toBe(403);
+
+      // GET /:id/responses
+      res = await request(app)
+        .get('/api/hospital/blood-requests/some-fake-id/responses')
+        .set('Authorization', `Bearer ${donor1Token}`);
+      expect(res.status).toBe(403);
+
+      // PATCH /:id/close
+      res = await request(app)
+        .patch('/api/hospital/blood-requests/some-fake-id/close')
+        .set('Authorization', `Bearer ${donor1Token}`);
+      expect(res.status).toBe(403);
+    });
+
+    it('returns 400 when invalid bloodType or quantityNeeded is provided', async () => {
+      // Invalid bloodType
+      let res = await request(app)
+        .post('/api/hospital/blood-requests')
+        .set('Authorization', `Bearer ${hospitalToken}`)
+        .send({ bloodType: 'invalid', quantityNeeded: 2 });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/Invalid blood type/);
+
+      // Negative quantityNeeded
+      res = await request(app)
+        .post('/api/hospital/blood-requests')
+        .set('Authorization', `Bearer ${hospitalToken}`)
+        .send({ bloodType: 'O+', quantityNeeded: -1 });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/quantityNeeded must be a positive integer/);
+      
+      // Zero quantityNeeded
+      res = await request(app)
+        .post('/api/hospital/blood-requests')
+        .set('Authorization', `Bearer ${hospitalToken}`)
+        .send({ bloodType: 'O+', quantityNeeded: 0 });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/quantityNeeded must be a positive integer/);
+    });
+  });
 });

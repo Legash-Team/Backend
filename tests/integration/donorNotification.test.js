@@ -9,9 +9,14 @@ const Hospital = require('../../src/models/Hospital');
 const Donor = require('../../src/models/Donor');
 const generateToken = require('../../src/utils/generateToken');
 
+const donorNotificationController = require('../../src/controllers/donorNotificationController');
+const verifyToken = require('../../src/middleware/authMiddleware');
+const requireRole = require('../../src/middleware/requireRole');
+
 const app = express();
 app.use(express.json());
 app.use('/api/donor/notifications', donorNotificationRoutes);
+app.post('/api/donor/push-token', verifyToken, requireRole('donor'), donorNotificationController.registerPushToken);
 app.use(errorHandler);
 
 describe('Donor Notifications API', () => {
@@ -70,7 +75,7 @@ describe('Donor Notifications API', () => {
 
     // 3. Register Push Token
     res = await request(app)
-      .post('/api/donor/notifications/push-token')
+      .post('/api/donor/push-token')
       .set('Authorization', `Bearer ${donor1Token}`)
       .send({ pushToken: 'fcm-token-123' });
 
@@ -103,12 +108,18 @@ describe('Donor Notifications API', () => {
     expect(res.body.error).toBe("You've already responded to this request.");
 
     // 6. Test closed request
-    requestDoc.status = 'closed';
-    await requestDoc.save();
+    const requestDoc2 = await BloodRequest.create({
+      hospital: hospital._id,
+      bloodType: 'A+',
+      quantityNeeded: 2,
+      status: 'closed',
+      closedReason: 'manual',
+      closesAt: new Date(Date.now() + 8 * 3600000)
+    });
 
     // Create a new response just to test closed status
     const responseDoc2 = await BloodRequestResponse.create({
-      bloodRequest: requestDoc._id,
+      bloodRequest: requestDoc2._id,
       donor: donor1._id,
       status: 'pending'
     });

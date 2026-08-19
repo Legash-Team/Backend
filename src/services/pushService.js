@@ -1,7 +1,7 @@
 const admin = require('firebase-admin');
 
 async function sendBloodAlert(pushToken, { hospitalName, bloodType, quantityNeeded }) {
-  if (!pushToken) return;
+  if (!pushToken || !admin.apps.length) return;
 
   const payload = {
     notification: {
