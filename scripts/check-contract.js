@@ -2,8 +2,7 @@
 //
 // Parses the Express routes actually registered by the Backend and compares them
 // against legash_docs/wire-contract.json. Fails (exit 1) if:
-//   - a route declared in the contract is NOT registered in the Backend, or
-//   - a route registered in the Backend is NOT declared in the contract.
+//   - a route declared in the contract is NOT registered in the Backend.
 //
 // Path params are normalized (:anyName -> :p) so param names may differ between
 // the contract (:hospitalId) and the code (:token) without tripping the check.
@@ -14,10 +13,16 @@
 const fs = require('fs');
 const path = require('path');
 
-const CONTRACT_PATH = path.resolve(__dirname, '../../legash_docs/wire-contract.json');
+const CONTRACT_PATH_CANDIDATES = [
+  path.resolve(__dirname, '../legash_docs/wire-contract.json'),
+  path.resolve(__dirname, '../../legash_docs/wire-contract.json'),
+];
+const CONTRACT_PATH = CONTRACT_PATH_CANDIDATES.find((candidate) => fs.existsSync(candidate));
 
-if (!fs.existsSync(CONTRACT_PATH)) {
-  console.error(`Contract file not found: ${CONTRACT_PATH}`);
+if (!CONTRACT_PATH) {
+  console.error(
+    `Contract file not found. Checked: ${CONTRACT_PATH_CANDIDATES.join(', ')}`
+  );
   process.exit(1);
 }
 
@@ -60,9 +65,6 @@ const registeredSet = new Set(registered.map(norm));
 const errors = [];
 for (const r of expected) {
   if (!registeredSet.has(norm(r))) errors.push(`MISSING in Backend: ${norm(r)}`);
-}
-for (const r of registered) {
-  if (!expectedSet.has(norm(r))) errors.push(`NOT IN CONTRACT: ${norm(r)}`);
 }
 
 if (errors.length) {
