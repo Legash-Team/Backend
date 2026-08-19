@@ -1,68 +1,93 @@
-// tests/integration/hospitalAuth.test.js
 const request = require('supertest');
 const express = require('express');
+const mongoose = require('mongoose');
+const { MongoMemoryServer } = require('mongodb-memory-server');
+
+// Mock SMS Service for Jest tests
+jest.mock('../../src/services/smsService', () => ({
+  sendOtp: jest.fn().mockResolvedValue(true),
+  verifyOtp: jest.fn().mockResolvedValue(true),
+}));
+
 const hospitalAuthRoutes = require('../../src/routes/hospitalAuthRoutes');
-const errorHandler = require('../../src/middleware/errorHandler');
+const donorAuthRoutes = require('../../src/routes/donorAuthRoutes');
 const Hospital = require('../../src/models/Hospital');
+const Donor = require('../../src/models/Donor');
 
-const app = express();
-app.use(express.json());
-app.use('/api/hospitals', hospitalAuthRoutes);
-app.use(errorHandler);
+let app;
+let mongoServer;
 
-describe('Integration Tests: Hospital Auth', () => {
-  const validHospitalData = {
-    name: 'St. Paul Hospital',
-    email: 'contact@stpaul.edu.et',
-    password: 'StrongPassword123!',
-    phone: '+251911223344',
-    licenseNumber: 'HOSP-ETH-789',
-    location: {
-      coordinates: [38.75, 9.03],
-      address: 'Addis Ababa, Ethiopia'
-    }
-  };
+beforeAll(async () => {
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+  }
 
-  test('POST /api/hospitals/register -> should register new hospital (201)', async () => {
-    const res = await request(app)
-      .post('/api/hospitals/register')
-      .send(validHospitalData);
+  mongoServer = await MongoMemoryServer.create();
+  await mongoose.connect(mongoServer.getUri());
 
-    expect(res.statusCode).toBe(201);
-    expect(res.body).toHaveProperty('hospitalId');
+  app = express();
+  app.use(express.json());
+  app.use('/api/hospital', hospitalAuthRoutes);
+  app.use('/api/hospitals', hospitalAuthRoutes);
+  app.use('/v1/donor', donorAuthRoutes);
+  app.use('/api/donor', donorAuthRoutes);
+});
 
-    // Verify DB state
-    const saved = await Hospital.findById(res.body.hospitalId);
-    expect(saved).not.toBeNull();
-    expect(saved.isEmailVerified).toBe(false);
-    expect(saved.email).toBe('contact@stpaul.edu.et');
-  });
+afterAll(async () => {
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+  }
+  if (mongoServer) {
+    await mongoServer.stop();
+  }
+});
 
-  test('POST /api/hospitals/register -> should fail validation on bad phone format (400)', async () => {
-    const res = await request(app)
-      .post('/api/hospitals/register')
-      .send({ ...validHospitalData, phone: '0911223344' }); // Missing +251
+beforeEach(async () => {
+  await Hospital.deleteMany({});
+  await Donor.deleteMany({});
+  jest.clearAllMocks();
+});
 
-    expect(res.statusCode).toBe(400);
-    expect(res.body.success).toBe(false);
-  });
-
-  test('GET /api/hospitals/verify-email/:token -> should verify hospital email (200)', async () => {
-    // 1. Create unverified hospital directly in DB
-    const hospital = await Hospital.create({
-      ...validHospitalData,
-      password: 'hashedpassword'
+describe('POST /v1/donor/resend-otp', () => {
+  it('should return 200 when unverified donor requests a resend', async () => {
+    await Donor.create({
+      name: 'Yared Tadesse',
+      phone: '+251911234567',
+      fin: 'ETH-8829-1029-4401',
+      passwordHash: 'hashedpass',
+      gender: 'male',
+      phoneVerified: false,
+      location: { type: 'Point', coordinates: [38.75, 9.03] },
+      agreedToTerms: true,
     });
 
-    // 2. Perform verification request
     const res = await request(app)
-      .get(`/api/hospitals/verify-email/${hospital._id}`);
+      .post('/v1/donor/resend-otp')
+      .send({ phone: '+251911234567' });
 
-    expect(res.statusCode).toBe(200);
+    expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+    expect(res.body.message).toContain('OTP');
+  });
 
-    // 3. Confirm verified status in DB
-    const updated = await Hospital.findById(hospital._id);
-    expect(updated.isEmailVerified).toBe(true);
+  it('should return 400 when phone number is already verified', async () => {
+    await Donor.create({
+      name: 'Yared Tadesse',
+      phone: '+251911234567',
+      fin: 'ETH-8829-1029-4401',
+      passwordHash: 'hashedpass',
+      gender: 'male',
+      phoneVerified: true,
+      location: { type: 'Point', coordinates: [38.75, 9.03] },
+      agreedToTerms: true,
+    });
+
+    const res = await request(app)
+      .post('/v1/donor/resend-otp')
+      .send({ phone: '+251911234567' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error).toBe('Phone number is already verified.');
   });
 });

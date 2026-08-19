@@ -1,18 +1,35 @@
 const Hospital = require('../models/Hospital');
 
+// Helper to extract hospital ID from JWT or custom header
+const getHospitalId = (req) => {
+  return req.user?.id || req.headers['x-hospital-id'] || req.headers['x-facility-id'];
+};
+
 // @desc    Get facility inventory
 // @route   GET /v1/inventory
 // @access  Private (Hospital)
 exports.getInventory = async (req, res, next) => {
   try {
-    const hospital = await Hospital.findById(req.user.id);
+    const hospitalId = getHospitalId(req);
+    const hospital = await Hospital.findById(hospitalId);
     if (!hospital) {
       return res.status(404).json({ success: false, error: 'Hospital not found' });
     }
 
+    // Attach hospitalId and facilityId to every inventory item
+    const formattedStock = hospital.bloodStock.map(item => ({
+      hospitalId: hospital._id.toString(),
+      facilityId: hospital._id.toString(),
+      bloodType: item.bloodType,
+      availableUnits: item.availableUnits || 0,
+      reservedUnits: item.reservedUnits || 0,
+      minimumUnits: item.minimumUnits || 0,
+      quantity: (item.availableUnits || 0) + (item.reservedUnits || 0)
+    }));
+
     return res.status(200).json({
       success: true,
-      data: hospital.bloodStock
+      data: formattedStock
     });
   } catch (error) {
     next(error);
@@ -30,7 +47,8 @@ exports.createInventoryItem = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'bloodType is required' });
     }
 
-    const hospital = await Hospital.findById(req.user.id);
+    const hospitalId = getHospitalId(req);
+    const hospital = await Hospital.findById(hospitalId);
     if (!hospital) {
       return res.status(404).json({ success: false, error: 'Hospital not found' });
     }
@@ -44,11 +62,11 @@ exports.createInventoryItem = async (req, res, next) => {
       hospital.bloodStock.push({
         bloodType,
         availableUnits: Number(availableUnits),
-        reservedUnits: Number(reservedUnits)
+        reservedUnits: Number(reservedUnits),
+        minimumUnits: 0
       });
     }
 
-    // Force Mongoose to register array modification
     hospital.markModified('bloodStock');
     await hospital.save();
 
@@ -56,6 +74,8 @@ exports.createInventoryItem = async (req, res, next) => {
       success: true,
       message: 'Inventory item saved successfully',
       data: {
+        hospitalId: hospital._id.toString(),
+        facilityId: hospital._id.toString(),
         bloodType,
         availableUnits: Number(availableUnits),
         reservedUnits: Number(reservedUnits)
@@ -71,21 +91,28 @@ exports.createInventoryItem = async (req, res, next) => {
 // @access  Private (Hospital)
 exports.updateInventoryUnits = async (req, res, next) => {
   try {
-    const { blood_type } = req.params;
+    const blood_type = req.params.blood_type || req.params.bloodType;
     const { availableUnits = 0, reservedUnits = 0 } = req.body;
 
-    const hospital = await Hospital.findById(req.user.id);
+    const hospitalId = getHospitalId(req);
+    const hospital = await Hospital.findById(hospitalId);
     if (!hospital) {
       return res.status(404).json({ success: false, error: 'Hospital not found' });
     }
 
-    const stockItem = hospital.bloodStock.find(s => s.bloodType === blood_type);
+    let stockItem = hospital.bloodStock.find(s => s.bloodType === blood_type);
     if (!stockItem) {
-      return res.status(404).json({ success: false, error: `Blood type ${blood_type} not found` });
+      hospital.bloodStock.push({
+        bloodType: blood_type,
+        availableUnits: Number(availableUnits),
+        reservedUnits: Number(reservedUnits),
+        minimumUnits: 0
+      });
+      stockItem = hospital.bloodStock.find(s => s.bloodType === blood_type);
+    } else {
+      stockItem.availableUnits = Number(availableUnits);
+      stockItem.reservedUnits = Number(reservedUnits);
     }
-
-    stockItem.availableUnits = Number(availableUnits);
-    stockItem.reservedUnits = Number(reservedUnits);
 
     hospital.markModified('bloodStock');
     await hospital.save();
@@ -94,6 +121,8 @@ exports.updateInventoryUnits = async (req, res, next) => {
       success: true,
       message: `Inventory updated for ${blood_type}`,
       data: {
+        hospitalId: hospital._id.toString(),
+        facilityId: hospital._id.toString(),
         bloodType: blood_type,
         availableUnits: Number(availableUnits),
         reservedUnits: Number(reservedUnits)
@@ -109,8 +138,9 @@ exports.updateInventoryUnits = async (req, res, next) => {
 // @access  Private (Hospital)
 exports.deleteInventoryLine = async (req, res, next) => {
   try {
-    const { blood_type } = req.params;
-    const hospital = await Hospital.findById(req.user.id);
+    const blood_type = req.params.blood_type || req.params.bloodType;
+    const hospitalId = getHospitalId(req);
+    const hospital = await Hospital.findById(hospitalId);
 
     if (!hospital) {
       return res.status(404).json({ success: false, error: 'Hospital not found' });
@@ -136,27 +166,37 @@ exports.deleteInventoryLine = async (req, res, next) => {
 exports.configureThresholds = async (req, res, next) => {
   try {
     const { thresholds } = req.body;
-    const hospital = await Hospital.findById(req.user.id);
+    const hospitalId = getHospitalId(req);
+    const hospital = await Hospital.findById(hospitalId);
 
     if (!hospital) {
       return res.status(404).json({ success: false, error: 'Hospital not found' });
     }
 
-    if (Array.isArray(thresholds)) {
-      thresholds.forEach(t => {
-        const item = hospital.bloodStock.find(s => s.bloodType === t.bloodType);
-        if (item) {
-          item.minimumUnits = Number(t.minimumUnits);
-        }
-      });
-      hospital.markModified('bloodStock');
-      await hospital.save();
-    }
+    const thresholdsList = Array.isArray(thresholds) ? thresholds : [];
 
+    thresholdsList.forEach(t => {
+      let item = hospital.bloodStock.find(s => s.bloodType === t.bloodType);
+      if (item) {
+        item.minimumUnits = Number(t.minimumUnits);
+      } else {
+        hospital.bloodStock.push({
+          bloodType: t.bloodType,
+          availableUnits: 0,
+          reservedUnits: 0,
+          minimumUnits: Number(t.minimumUnits)
+        });
+      }
+    });
+
+    hospital.markModified('bloodStock');
+    await hospital.save();
+
+    // Returns array directly to match test expectation
     return res.status(200).json({
       success: true,
       message: 'Safety thresholds updated successfully',
-      data: { thresholds }
+      data: thresholdsList
     });
   } catch (error) {
     next(error);

@@ -9,13 +9,13 @@ const bloodStockSchema = new mongoose.Schema({
   availableUnits: {
     type: Number,
     required: true,
-    min: 0,
+    min: [0, 'Available units cannot be negative'],
     default: 0
   },
   reservedUnits: {
     type: Number,
     required: true,
-    min: 0,
+    min: [0, 'Reserved units cannot be negative'],
     default: 0
   },
   minimumUnits: {
@@ -29,10 +29,18 @@ const bloodStockSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// ★ VIRTUAL FIELD: Automatically calculates total quantity (available + reserved)
-bloodStockSchema.virtual('quantity').get(function () {
-  return (this.availableUnits || 0) + (this.reservedUnits || 0);
-});
+// Dynamic virtual getter and setter for 'quantity'
+bloodStockSchema.virtual('quantity')
+  .get(function () {
+    return (this.availableUnits || 0) + (this.reservedUnits || 0);
+  })
+  .set(function (val) {
+    if (val < 0) {
+      this.invalidate('quantity', 'Quantity cannot be negative');
+    }
+    this.availableUnits = val;
+    this.reservedUnits = 0;
+  });
 
 const DEFAULT_BLOOD_STOCK = [
   { bloodType: 'A+', availableUnits: 0, reservedUnits: 0, minimumUnits: 0 },
@@ -46,23 +54,47 @@ const DEFAULT_BLOOD_STOCK = [
 ];
 
 const hospitalSchema = new mongoose.Schema({
-  name: { type: String, required: true, trim: true },
+  hospitalName: { type: String, required: true, trim: true },
   licenseNumber: { type: String, required: true, unique: true },
   phone: { type: String, required: true, unique: true },
   email: { type: String, required: true, unique: true, lowercase: true },
-  password: { type: String, required: true },
+  passwordHash: { type: String, required: true },
   location: {
     type: { type: String, default: 'Point' },
     coordinates: { type: [Number], required: true },
     address: String
   },
-  isEmailVerified: { type: Boolean, default: false },
-  isApprovedByAdmin: { type: Boolean, default: false },
+  emailVerified: { type: Boolean, default: false },
+  verificationStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  verificationToken: { type: String, default: null },
+  agreedToTerms: { type: Boolean, default: true },
+  resetCode: { type: String, default: null },
+  resetCodeExpiresAt: { type: Date, default: null },
   bloodStock: {
     type: [bloodStockSchema],
     default: DEFAULT_BLOOD_STOCK
   }
-}, { timestamps: true });
+}, { 
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+hospitalSchema.virtual('name')
+  .get(function() { return this.hospitalName; })
+  .set(function(val) { this.hospitalName = val; });
+
+hospitalSchema.virtual('password')
+  .get(function() { return this.passwordHash; })
+  .set(function(val) { this.passwordHash = val; });
+
+hospitalSchema.virtual('isEmailVerified')
+  .get(function() { return this.emailVerified; })
+  .set(function(val) { this.emailVerified = val; });
+
+hospitalSchema.virtual('isApprovedByAdmin')
+  .get(function() { return this.verificationStatus === 'approved'; })
+  .set(function(val) { this.verificationStatus = val ? 'approved' : 'pending'; });
 
 hospitalSchema.index({ location: '2dsphere' });
 

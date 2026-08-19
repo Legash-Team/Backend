@@ -1,0 +1,758 @@
+{
+  "info": {
+    "_postman_id": "8de5f9a2-5e3a-4b9e-9f8a-7d6c5b4a3f2e",
+    "name": "Legash Complete Enterprise Platform Suite",
+    "description": "Full automated test suite covering all modules: Identity & Auth, Donor Profiles, Inventory Management, Emergency H2H Logistics, Blood Drives, and Vitals/Compliance Ledger.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" },
+    { "key": "donorPhone", "value": "+251911234567", "type": "string" },
+    { "key": "donorPassword", "value": "Password123!", "type": "string" },
+    { "key": "donorToken", "value": "", "type": "string" },
+    { "key": "donorId", "value": "", "type": "string" },
+    { "key": "hospitalEmail", "value": "contact@stpaul.edu.et", "type": "string" },
+    { "key": "hospitalPassword", "value": "StrongPassword123!", "type": "string" },
+    { "key": "hospitalId", "value": "60d5f1112233445566778899", "type": "string" },
+    { "key": "authToken", "value": "", "type": "string" },
+    { "key": "bloodType", "value": "O-", "type": "string" },
+    { "key": "requestId", "value": "60d7b1112233445566778899", "type": "string" },
+    { "key": "eventId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "1. Donor Auth Flow",
+      "item": [
+        {
+          "name": "1. Register Donor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Donor register returns 201 Created', function() {",
+                  "    pm.expect(pm.response.code).to.equal(201);",
+                  "    pm.expect(res.success).to.be.true;",
+                  "});",
+                  "const donorId = res.donorId || (res.data && res.data.donorId);",
+                  "if (donorId) {",
+                  "    pm.collectionVariables.set('donorId', donorId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Yared Tadesse\",\n  \"password\": \"Password123!\",\n  \"phone\": \"+251911234567\",\n  \"fin\": \"ETH-8829-1029-4401\",\n  \"gender\": \"male\",\n  \"bloodType\": \"O-\",\n  \"location\": { \"lat\": 9.0108, \"lng\": 38.7613 },\n  \"agreedToTerms\": true\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/v1/donor/register", "host": ["{{baseUrl}}"], "path": ["v1", "donor", "register"] }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Resend Donor OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Resend OTP returns 200 OK', function() {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(res.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+251911234567\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/v1/donor/resend-otp", "host": ["{{baseUrl}}"], "path": ["v1", "donor", "resend-otp"] }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Verify Donor OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Verify OTP returns 200 OK', function() {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(res.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+251911234567\",\n  \"code\": \"482910\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/v1/donor/verify-otp", "host": ["{{baseUrl}}"], "path": ["v1", "donor", "verify-otp"] }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Login Donor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Donor login returns 200 OK with token', function() {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(res.success).to.be.true;",
+                  "});",
+                  "const token = res.token || (res.data && res.data.token);",
+                  "if (token) {",
+                  "    pm.collectionVariables.set('donorToken', token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+251911234567\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/v1/donor/login", "host": ["{{baseUrl}}"], "path": ["v1", "donor", "login"] }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Donor Forgot Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Donor forgot password returns 200 OK', function() {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(res.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+251911234567\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/v1/donor/forgot-password", "host": ["{{baseUrl}}"], "path": ["v1", "donor", "forgot-password"] }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Donor Reset Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Donor reset password returns 200 OK', function() {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(res.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+251911234567\",\n  \"code\": \"482910\",\n  \"newPassword\": \"NewStrongPassword123!\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/v1/donor/reset-password", "host": ["{{baseUrl}}"], "path": ["v1", "donor", "reset-password"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Hospital & Shared Auth Flow",
+      "item": [
+        {
+          "name": "1. Register Hospital",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Register returns 201 Created', function () {",
+                  "    pm.expect(pm.response.code).to.equal(201);",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "const hospId = jsonData.hospitalId || (jsonData.data && jsonData.data.hospitalId);",
+                  "if (hospId) {",
+                  "    pm.collectionVariables.set('hospitalId', hospId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"St. Paul Hospital\",\n  \"email\": \"contact@stpaul.edu.et\",\n  \"password\": \"StrongPassword123!\",\n  \"phone\": \"+251911223344\",\n  \"licenseNumber\": \"HOSP-ETH-789\",\n  \"location\": {\n    \"coordinates\": [38.75, 9.03],\n    \"address\": \"Addis Ababa, Ethiopia\"\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/hospitals/register", "host": ["{{baseUrl}}"], "path": ["api", "hospitals", "register"] }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Verify Email",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Verify email returns 200 success', function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/hospitals/verify-email/{{hospitalId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "hospitals", "verify-email", "{{hospitalId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Register Blood Center",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Register blood center returns 201 Created', function() {",
+                  "    pm.expect(pm.response.code).to.equal(201);",
+                  "    pm.expect(res.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"centerName\": \"Addis Ababa Regional Blood Bank Center\",\n  \"password\": \"CenterPassword123!\",\n  \"licenseNumber\": \"EBTBS-HUB-2026-0012\",\n  \"phone\": \"+251115510000\",\n  \"email\": \"contact@aabloodbank.gov.et\",\n  \"location\": { \"lat\": 9.0150, \"lng\": 38.7510 },\n  \"isRegionalHub\": true,\n  \"agreedToTerms\": true\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/v1/blood-center/register", "host": ["{{baseUrl}}"], "path": ["v1", "blood-center", "register"] }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Login (Shared Facility)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Login returns 200 with auth token', function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "const token = jsonData.token || (jsonData.data && jsonData.data.token);",
+                  "if (token) {",
+                  "    pm.collectionVariables.set('authToken', token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"contact@stpaul.edu.et\",\n  \"password\": \"StrongPassword123!\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Inventory Management",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{authToken}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "1. Create Inventory Item (POST)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Create item returns 201 Created', function () {",
+                  "    pm.expect(pm.response.code).to.equal(201);",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});",
+                  "if (jsonData.data) {",
+                  "    pm.test('Response contains correct inventory data', function () {",
+                  "        pm.expect(jsonData.data).to.have.property('bloodType', 'O-');",
+                  "        pm.expect(jsonData.data).to.have.property('availableUnits', 12);",
+                  "        pm.expect(jsonData.data).to.have.property('reservedUnits', 3);",
+                  "    });",
+                  "    pm.collectionVariables.set('bloodType', jsonData.data.bloodType);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-hospital-id", "value": "{{hospitalId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bloodType\": \"O-\",\n  \"availableUnits\": 12,\n  \"reservedUnits\": 3\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/v1/inventory", "host": ["{{baseUrl}}"], "path": ["v1", "inventory"] }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Get Facility Inventory (GET)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Get inventory returns 200 OK', function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "pm.test('Response contains inventory array', function () {",
+                  "    pm.expect(jsonData.data).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-hospital-id", "value": "{{hospitalId}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/inventory", "host": ["{{baseUrl}}"], "path": ["v1", "inventory"] }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Configure Thresholds (PUT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Configure thresholds returns 200 OK', function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-hospital-id", "value": "{{hospitalId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"thresholds\": [\n    {\n      \"bloodType\": \"O-\",\n      \"minimumUnits\": 10\n    }\n  ]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/v1/inventory/thresholds", "host": ["{{baseUrl}}"], "path": ["v1", "inventory", "thresholds"] }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Update Inventory Units (PUT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const jsonData = pm.response.json();",
+                  "pm.test('Update inventory returns 200 OK', function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "pm.test('Inventory was updated correctly', function () {",
+                  "    pm.expect(jsonData.data).to.have.property('availableUnits', 15);",
+                  "    pm.expect(jsonData.data).to.have.property('reservedUnits', 1);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-hospital-id", "value": "{{hospitalId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"availableUnits\": 15,\n  \"reservedUnits\": 1\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/v1/inventory/{{bloodType}}", "host": ["{{baseUrl}}"], "path": ["v1", "inventory", "{{bloodType}}"] }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Delete Inventory Line (DELETE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Delete line returns 204 No Content', function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "x-hospital-id", "value": "{{hospitalId}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/inventory/{{bloodType}}", "host": ["{{baseUrl}}"], "path": ["v1", "inventory", "{{bloodType}}"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Emergency Logistics & H2H",
+      "item": [
+        {
+          "name": "1. Post Emergency Request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Emergency request returns 201 Created', function() {",
+                  "    pm.expect(pm.response.code).to.equal(201);",
+                  "    pm.expect(res.success).to.be.true;",
+                  "});",
+                  "if (res.data && res.data.requestId) {",
+                  "    pm.collectionVariables.set('requestId', res.data.requestId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bloodType\": \"O-\",\n  \"quantityRequested\": 3,\n  \"targetScope\": \"HYBRID_ALL\",\n  \"urgencyLevel\": \"CRITICAL_TRAUMA\",\n  \"urgencyNote\": \"Mass casualty trauma incoming - OR 2\",\n  \"timeLimitHours\": 2,\n  \"radiusKm\": 15\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/v2/requests", "host": ["{{baseUrl}}"], "path": ["v2", "requests"] }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Broadcast Facility Alert",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Facility alert returns 201 Created', function() {",
+                  "    pm.expect(pm.response.code).to.equal(201);",
+                  "    pm.expect(res.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"alertType\": \"CRITICAL_DEFICIT\",\n  \"bloodType\": \"O-\",\n  \"message\": \"Complete stockout of O-Neg at St. Paul Hospital. Peer transfers requested.\",\n  \"radiusKm\": 25\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/v2/alerts/facility", "host": ["{{baseUrl}}"], "path": ["v2", "alerts", "facility"] }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Facility Fulfill Request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Facility fulfill returns 200 OK', function() {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(res.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"unitsOffered\": 2\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/v2/requests/{{requestId}}/facility-fulfill", "host": ["{{baseUrl}}"], "path": ["v2", "requests", "{{requestId}}", "facility-fulfill"] }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Donor Accept Request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Donor accept returns 200 OK', function() {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(res.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v2/requests/{{requestId}}/accept", "host": ["{{baseUrl}}"], "path": ["v2", "requests", "{{requestId}}", "accept"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Event Drives & Community Feeds",
+      "item": [
+        {
+          "name": "1. Create Event Post",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Create event post returns 201 Created', function() {",
+                  "    pm.expect(pm.response.code).to.equal(201);",
+                  "    pm.expect(res.success).to.be.true;",
+                  "});",
+                  "if (res.data && res.data.id) {",
+                  "    pm.collectionVariables.set('eventId', res.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Addis Ababa University Campus Donation Drive\",\n  \"description\": \"Joint mobile blood drive organized by EBTBS and AA Regional Blood Center.\",\n  \"eventDate\": \"2026-09-01T08:00:00.000Z\",\n  \"venueLocation\": {\n    \"address\": \"6 Kilo Campus Main Hall, Addis Ababa\",\n    \"coordinates\": [38.7610, 9.0480]\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/v2/events", "host": ["{{baseUrl}}"], "path": ["v2", "events"] }
+          },
+          "response": []
+        },
+        {
+          "name": "2. List Event Posts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('List events returns 200 OK', function() {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(res.data).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/v2/events?page=1&limit=10", "host": ["{{baseUrl}}"], "path": ["v2", "events"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "6. Enterprise Ledger & Compliance",
+      "item": [
+        {
+          "name": "1. Query Audit Logs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Query audit logs returns 200 OK', function() {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(res.data).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/v3/audit-logs?page=1&limit=20", "host": ["{{baseUrl}}"], "path": ["v3", "audit-logs"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "20" }] }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Verify Fayda Identity",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Verify Fayda identity returns 200 OK', function() {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(res.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fin\": \"ETH-8829-1029-4401\",\n  \"consentToken\": \"FAYDA-CONSENT-99218821\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/v3/identity/fayda/verify", "host": ["{{baseUrl}}"], "path": ["v3", "identity", "fayda", "verify"] }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "console.log(`🚀 ${pm.info.requestName} - ${pm.request.method} ${pm.request.url.toString()}`);"
+        ],
+        "type": "text/javascript"
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "exec": [
+          "if (pm.response.code !== 204 && pm.response.text()) {",
+          "  try {",
+          "    const jsonData = pm.response.json();",
+          "    if (pm.response.code >= 200 && pm.response.code < 300) {",
+          "      pm.test('Response has expected success field', function() {",
+          "        if (jsonData) {",
+          "          pm.expect(jsonData).to.have.property('success');",
+          "        }",
+          "      });",
+          "    }",
+          "  } catch (e) {}",
+          "}"
+        ],
+        "type": "text/javascript"
+      }
+    }
+  ]
+}
