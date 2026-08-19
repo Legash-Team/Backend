@@ -1,30 +1,51 @@
 const request = require('supertest');
 const express = require('express');
-const donorAuthRoutes = require('../../src/routes/donorAuthRoutes');
-const Donor = require('../../src/models/Donor');
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
+
+// ★ MOCK SMS SERVICE (No .env or real SMS credentials needed)
+jest.mock('../../src/services/smsService', () => ({
+  sendOtp: jest.fn().mockResolvedValue(true),
+  verifyOtp: jest.fn().mockResolvedValue(true),
+}));
+
+const hospitalAuthRoutes = require('../../src/routes/hospitalAuthRoutes');
+const donorAuthRoutes = require('../../src/routes/donorAuthRoutes');
+const Hospital = require('../../src/models/Hospital');
+const Donor = require('../../src/models/Donor');
 
 let app;
 let mongoServer;
 
 beforeAll(async () => {
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+  }
+
   mongoServer = await MongoMemoryServer.create();
   await mongoose.connect(mongoServer.getUri());
 
   app = express();
   app.use(express.json());
-  app.use('/api/donor', donorAuthRoutes);
+  app.use('/api/hospital', hospitalAuthRoutes);
+  app.use('/api/hospitals', hospitalAuthRoutes);
   app.use('/v1/donor', donorAuthRoutes);
+  app.use('/api/donor', donorAuthRoutes);
 });
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+  }
+  if (mongoServer) {
+    await mongoServer.stop();
+  }
 });
 
 beforeEach(async () => {
+  await Hospital.deleteMany({});
   await Donor.deleteMany({});
+  jest.clearAllMocks();
 });
 
 describe('POST /v1/donor/resend-otp', () => {
@@ -37,7 +58,7 @@ describe('POST /v1/donor/resend-otp', () => {
       gender: 'male',
       phoneVerified: false,
       location: { type: 'Point', coordinates: [38.75, 9.03] },
-      agreedToTerms: true
+      agreedToTerms: true,
     });
 
     const res = await request(app)
@@ -58,7 +79,7 @@ describe('POST /v1/donor/resend-otp', () => {
       gender: 'male',
       phoneVerified: true,
       location: { type: 'Point', coordinates: [38.75, 9.03] },
-      agreedToTerms: true
+      agreedToTerms: true,
     });
 
     const res = await request(app)
