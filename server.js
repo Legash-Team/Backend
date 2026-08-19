@@ -10,6 +10,7 @@ const hospitalAuthRoutes = require('./src/routes/hospitalAuthRoutes');
 const sharedAuthRoutes = require('./src/routes/sharedAuthRoutes');
 
 const donorAuthRoutes = require('./src/routes/donorAuthRoutes');
+const superAdminRoutes = require('./src/routes/superAdminRoutes');
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.get('/', (req, res) => res.json({ status: 'Legash API running' }));
 
 // Mount routes here, one line per person, added only when that person's file is ready:
 app.use('/api/donor', donorAuthRoutes);
+app.use('/api/superadmin', superAdminRoutes);
 
 // Must stay LAST — after every route above.
 app.use(errorHandler);
