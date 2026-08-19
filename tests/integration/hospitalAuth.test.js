@@ -1,45 +1,25 @@
 const request = require('supertest');
 const express = require('express');
-const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
-
-// Mock SMS Service for Jest tests
-jest.mock('../../src/services/smsService', () => ({
-  sendOtp: jest.fn().mockResolvedValue(true),
-  verifyOtp: jest.fn().mockResolvedValue(true),
-}));
-
 const hospitalAuthRoutes = require('../../src/routes/hospitalAuthRoutes');
 const donorAuthRoutes = require('../../src/routes/donorAuthRoutes');
 const Hospital = require('../../src/models/Hospital');
 const Donor = require('../../src/models/Donor');
 
+// Mock SMS Service for tests
+jest.mock('../../src/services/smsService', () => ({
+  sendOtp: jest.fn().mockResolvedValue(true),
+  verifyOtp: jest.fn().mockResolvedValue(true),
+}));
+
 let app;
-let mongoServer;
 
-beforeAll(async () => {
-  if (mongoose.connection.readyState !== 0) {
-    await mongoose.disconnect();
-  }
-
-  mongoServer = await MongoMemoryServer.create();
-  await mongoose.connect(mongoServer.getUri());
-
+beforeAll(() => {
   app = express();
   app.use(express.json());
   app.use('/api/hospital', hospitalAuthRoutes);
   app.use('/api/hospitals', hospitalAuthRoutes);
   app.use('/v1/donor', donorAuthRoutes);
   app.use('/api/donor', donorAuthRoutes);
-});
-
-afterAll(async () => {
-  if (mongoose.connection.readyState !== 0) {
-    await mongoose.disconnect();
-  }
-  if (mongoServer) {
-    await mongoServer.stop();
-  }
 });
 
 beforeEach(async () => {

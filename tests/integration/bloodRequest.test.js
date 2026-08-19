@@ -13,7 +13,7 @@ const app = express();
 app.use(express.json());
 app.use('/api/hospital/blood-requests', bloodRequestRoutes);
 
-// We need an error handler to see the actual error shapes
+// Error handler
 const errorHandler = require('../../src/middleware/errorHandler');
 app.use(errorHandler);
 
@@ -29,11 +29,14 @@ jest.mock('../../src/services/smsService', () => ({
 describe('Blood Request Lifecycle Integration', () => {
   let hospital, donor1, donor2, hospitalToken, donor1Token;
 
-  beforeAll(async () => {
-    await Hospital.deleteMany();
-    await Donor.deleteMany();
-    await BloodRequest.deleteMany();
-    await BloodRequestResponse.deleteMany();
+  beforeEach(async () => {
+    await Hospital.deleteMany({});
+    await Donor.deleteMany({});
+    await BloodRequest.deleteMany({});
+    await BloodRequestResponse.deleteMany({});
+    
+    // Ensure 2dsphere index is built before running $near queries
+    await Donor.createIndexes();
 
     hospital = await Hospital.create({
       hospitalName: 'Test Hospital',
@@ -75,13 +78,6 @@ describe('Blood Request Lifecycle Integration', () => {
       phoneVerified: true,
       passwordHash: 'hashed'
     });
-  });
-
-  afterAll(async () => {
-    await Hospital.deleteMany();
-    await Donor.deleteMany();
-    await BloodRequest.deleteMany();
-    await BloodRequestResponse.deleteMany();
   });
 
   it('runs the full blood request lifecycle: create -> list -> respond -> close', async () => {

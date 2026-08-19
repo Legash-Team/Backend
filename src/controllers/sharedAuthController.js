@@ -5,9 +5,6 @@ const generateToken = require('../utils/generateToken');
 const generateResetCode = require('../utils/generateResetCode');
 const { sendPasswordResetEmail } = require('../services/emailService');
 
-// @desc    Login for Hospital and SuperAdmin
-// @route   POST /api/auth/login
-// @access  Public
 exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
@@ -32,36 +29,28 @@ exports.login = async (req, res, next) => {
         });
       }
 
-      // NEW — Sprint 2 approval gate
-      if (hospital.verificationStatus === 'pending') {
-        return res.status(401).json({
-          success: false,
-          error: 'Your account is still pending Super Admin approval.'
-        });
-      }
-      if (hospital.verificationStatus === 'rejected') {
-        return res.status(401).json({
-          success: false,
-          error: 'Your registration was not approved. Check your email for details.'
-        });
-      }
-
-      // Check password
-      const isMatch = await comparePassword(password, hospital.passwordHash);
-      if (!isMatch) {
+      // ★ STEP A: MUST CHECK EMAIL VERIFICATION FIRST
+      if (!hospital.emailVerified) {
         return res.status(401).json({
           success: false,
           error: 'Please verify your email before logging in.'
         });
       }
 
-      if (hospital.verificationStatus === 'rejected') {
-        return res.status(403).json({
+      // ★ STEP B: CHECK SUPER ADMIN APPROVAL STATUS
+      if (hospital.verificationStatus === 'pending') {
+        return res.status(401).json({
           success: false,
-          error: 'Your hospital registration has been rejected.'
+          error: 'Your account is still pending Super Admin approval.'
         });
       }
 
+      if (hospital.verificationStatus === 'rejected') {
+        return res.status(401).json({
+          success: false,
+          error: 'Your registration was not approved. Check your email for details.'
+        });
+      }
       const token = generateToken({ id: hospital._id, role: 'hospital' });
 
       return res.status(200).json({
@@ -110,9 +99,6 @@ exports.login = async (req, res, next) => {
   }
 };
 
-// @desc    Request password reset code (Hospital / SuperAdmin)
-// @route   POST /api/auth/forgot-password
-// @access  Public
 exports.forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
@@ -130,7 +116,6 @@ exports.forgotPassword = async (req, res, next) => {
       expiresAt: new Date(Date.now() + 15 * 60 * 1000)
     };
 
-    // 1. Check Hospital
     const hospital = await Hospital.findOne({ email: cleanEmail });
     if (hospital) {
       hospital.resetCode = code;
@@ -140,7 +125,6 @@ exports.forgotPassword = async (req, res, next) => {
         if (sendPasswordResetEmail) await sendPasswordResetEmail(cleanEmail, code);
       } catch (err) {}
     } else {
-      // 2. Check SuperAdmin
       const superAdmin = await SuperAdmin.findOne({ email: cleanEmail });
       if (superAdmin) {
         superAdmin.resetCode = code;
@@ -161,9 +145,6 @@ exports.forgotPassword = async (req, res, next) => {
   }
 };
 
-// @desc    Reset password with 6-digit code (Hospital / SuperAdmin)
-// @route   POST /api/auth/reset-password
-// @access  Public
 exports.resetPassword = async (req, res, next) => {
   try {
     const { email, code, newPassword } = req.body;
@@ -178,7 +159,6 @@ exports.resetPassword = async (req, res, next) => {
     const cleanEmail = email.toLowerCase().trim();
     const newHashedPassword = await hashPassword(newPassword);
 
-    // 1. Check Hospital
     const hospital = await Hospital.findOne({ email: cleanEmail });
     if (hospital && hospital.resetCode === code) {
       if (hospital.resetCodeExpiresAt && hospital.resetCodeExpiresAt < new Date()) {
@@ -199,7 +179,6 @@ exports.resetPassword = async (req, res, next) => {
       });
     }
 
-    // 2. Check SuperAdmin
     const superAdmin = await SuperAdmin.findOne({ email: cleanEmail });
     if (superAdmin && superAdmin.resetCode === code) {
       if (superAdmin.resetCodeExpiresAt && superAdmin.resetCodeExpiresAt < new Date()) {
