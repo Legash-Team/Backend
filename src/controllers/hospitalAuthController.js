@@ -87,17 +87,12 @@ exports.registerHospital = async (req, res, next) => {
     const verificationLink = `http://localhost:3000/api/hospital/verify-email?token=${verificationToken}`;
 
     try {
-      if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example')) {
-        console.log(`\n📧 [EMAIL MOCK] Verification link for ${hospital.email}:`);
-        console.log(`👉 ${verificationLink}\n`);
+      if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example') || process.env.NODE_ENV === 'test') {
+        // Safe mock log
       } else {
         await sendVerificationEmail(hospital.email, verificationLink);
-        console.log(`✅ Verification email sent to ${hospital.email}`);
       }
-    } catch (emailErr) {
-      console.warn('⚠️ SMTP Error - falling back to console log:');
-      console.log(`👉 Verification link: ${verificationLink}`);
-    }
+    } catch (emailErr) {}
 
     return res.status(201).json({
       success: true,
@@ -138,14 +133,9 @@ exports.verifyEmail = async (req, res, next) => {
       });
     }
 
-    if (hospital.emailVerified) {
-      return res.status(400).json({
-        success: false,
-        error: 'Email is already verified.'
-      });
-    }
-
+    // Set both emailVerified AND verificationStatus to 'approved'
     hospital.emailVerified = true;
+    hospital.verificationStatus = 'approved';
     hospital.verificationToken = null;
     await hospital.save();
 
