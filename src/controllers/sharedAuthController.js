@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+const _crypto = require('crypto');
 const Hospital = require('../models/Hospital');
 const SuperAdmin = require('../models/SuperAdmin');
 const { hashPassword, comparePassword } = require('../utils/hashPassword');

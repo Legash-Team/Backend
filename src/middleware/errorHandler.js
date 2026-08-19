@@ -5,7 +5,7 @@
 // Every error response follows the standard shape from API_CONTRACT.md:
 //   { success: false, error: "human-readable message" }
 
-function errorHandler(err, req, res, next) {
+function errorHandler(err, req, res, _next) {
   console.error(err); // full details in the server log, not in the response
 
   let status = err.statusCode || 500;

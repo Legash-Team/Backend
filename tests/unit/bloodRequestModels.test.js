@@ -43,7 +43,7 @@ describe('Unit Tests: BloodRequest Model', () => {
   });
 
   test('should require closesAt at creation', async () => {
-    const { closesAt, ...withoutClosesAt } = validRequest;
+    const {closesAt: _closesAt, ...withoutClosesAt } = validRequest;
     await expect(BloodRequest.create(withoutClosesAt)).rejects.toThrow();
   });
 
