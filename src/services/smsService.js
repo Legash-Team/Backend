@@ -41,4 +41,19 @@ async function verifyOtp(phone, code) {
   return true;
 }
 
-module.exports = { sendOtp, verifyOtp };
+async function sendBloodAlertSms(phone, { hospitalName, bloodType, quantityNeeded }) {
+  const message = `Legash: ${hospitalName} needs ${bloodType} blood. Open the app to respond.`;
+  const response = await fetch(`${process.env.SMS_GATEWAY_BASE_URL}/api/v1/sms/send`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.SMS_GATEWAY_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ phone, message }),
+  });
+  if (!response.ok) {
+    throw new Error(`SMS gateway error: ${response.status}`);
+  }
+}
+
+module.exports = { sendOtp, verifyOtp, sendBloodAlertSms };
