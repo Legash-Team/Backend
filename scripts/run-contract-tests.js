@@ -1,8 +1,9 @@
 require('dotenv').config();
 
-// 1. Mock SMS environment so production code has valid URLs
-process.env.SMS_GATEWAY_BASE_URL = 'http://127.0.0.1/mock-sms';
-process.env.SMS_GATEWAY_API_KEY = 'mock-test-key';
+// 1. Fallback environment variables for CI environment (when .env is missing)
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'legash-ci-secret-key-32-chars-long';
+process.env.SMS_GATEWAY_BASE_URL = process.env.SMS_GATEWAY_BASE_URL || 'http://127.0.0.1/mock-sms';
+process.env.SMS_GATEWAY_API_KEY = process.env.SMS_GATEWAY_API_KEY || 'mock-test-key';
 process.env.NODE_ENV = 'test';
 
 // 2. Intercept outgoing SMS fetch requests during contract testing
@@ -17,7 +18,7 @@ global.fetch = async (url, options) => {
   return { ok: true, status: 200, json: async () => ({}) };
 };
 
-// 3. ★ Intercept generateResetCode in require.cache so it returns Postman's test code "482910"
+// 3. Intercept generateResetCode in require.cache so it returns Postman's test code "482910"
 const mockResetCodeFn = () => ({
   code: '482910',
   expiresAt: new Date(Date.now() + 15 * 60 * 1000)
