@@ -3,16 +3,17 @@ const path = require('path');
 
 const CONTRACT_PATH_CANDIDATES = [
   path.resolve(__dirname, '../legash_docs/wire-contract.json'),
-  path.resolve(__dirname, '../../legash_docs/wire-contract.json'),
   path.resolve(process.cwd(), 'legash_docs/wire-contract.json'),
-  path.resolve(process.cwd(), '../legash_docs/wire-contract.json'),
+  path.resolve(process.cwd(), 'Backend/legash_docs/wire-contract.json'),
+  path.resolve(__dirname, '../../legash_docs/wire-contract.json'),
+  path.resolve(process.cwd(), '../legash_docs/wire-contract.json')
 ];
 
 const CONTRACT_PATH = CONTRACT_PATH_CANDIDATES.find((candidate) => fs.existsSync(candidate));
 
 if (!CONTRACT_PATH) {
   console.error(
-    `Contract file not found. Checked:\n  - ${CONTRACT_PATH_CANDIDATES.join('\n  - ')}`
+    `❌ Contract file not found. Checked:\n  - ${CONTRACT_PATH_CANDIDATES.join('\n  - ')}`
   );
   process.exit(1);
 }
@@ -28,7 +29,7 @@ function normalize(p) {
 
 const mounts = [
   { base: '/api/hospitals', router: require('../src/routes/hospitalAuthRoutes') },
-  { base: '/api/auth', router: require('../src/routes/sharedAuthRoutes') },
+  { base: '/api/auth', router: require('../src/routes/sharedAuthRoutes') }
 ];
 
 const registered = [];

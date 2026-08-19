@@ -3,7 +3,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 
-// Mock SMS Service for CI
+// Mock SMS Service for Jest tests
 jest.mock('../../src/services/smsService', () => ({
   sendOtp: jest.fn().mockResolvedValue(true),
   verifyOtp: jest.fn().mockResolvedValue(true),

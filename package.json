@@ -13,8 +13,7 @@
     "test:coverage": "jest --coverage",
     "test:contract": "node scripts/check-contract.js",
     "test:contract:e2e": "node scripts/run-contract-tests.js",
-    "test:newman": "newman run ../legash_docs/legash_full_test_collection.json",
-    "test:newman:env": "newman run ../legash_docs/legash_full_test_collection.json -e ../legash_docs/postman_environment.json",
+    "test:newman": "newman run ./legash_docs/legash_full_test_collection.json --env-var \"baseUrl=http://localhost:3000\"",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
