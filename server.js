@@ -25,6 +25,8 @@ const hospitalAuthRoutes = require('./src/routes/hospitalAuthRoutes');
 const sharedAuthRoutes = require('./src/routes/sharedAuthRoutes');
 
 const donorAuthRoutes = require('./src/routes/donorAuthRoutes');
+const superAdminRoutes = require('./src/routes/superAdminRoutes');
+const eventRoutes = require('./src/routes/eventRoutes');
 
 const app = express();
 
@@ -47,6 +49,8 @@ app.use('/api/hospital/blood-requests', bloodRequestRoutes);
 app.use('/api/donor/notifications', donorNotificationRoutes);
 app.post('/api/donor/push-token', verifyToken, requireRole('donor'), donorNotificationController.registerPushToken);
 app.use('/api/donor', donorAuthRoutes);
+app.use('/api/superadmin', superAdminRoutes);
+app.use('/api/donor/events', eventRoutes);
 
 // Must stay LAST — after every route above.
 app.use(errorHandler);

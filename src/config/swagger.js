@@ -9,6 +9,15 @@ const options = {
       description: 'Registration, login, and password reset endpoints',
     },
     servers: [{ url: 'http://localhost:3000/api' }],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+      },
+    },
   },
   // This tells Swagger which files to scan for the comment blocks
   apis: ['./src/routes/*.js'],
