@@ -25,6 +25,8 @@ const hospitalAuthRoutes = require('./src/routes/hospitalAuthRoutes');
 const sharedAuthRoutes = require('./src/routes/sharedAuthRoutes');
 const donorAuthRoutes = require('./src/routes/donorAuthRoutes');
 const inventoryRoutes = require('./src/routes/inventoryRoutes');
+const superAdminRoutes = require('./src/routes/superAdminRoutes');
+const eventRoutes = require('./src/routes/eventRoutes');
 
 const app = express();
 
@@ -43,6 +45,21 @@ app.use('/v1/inventory', inventoryRoutes);
 app.get('/', (req, res) => res.json({ status: 'Legash API running' }));
 
 // Global error handler must stay LAST
+// Mount routes here, one line per person, added only when that person's file is ready:
+const bloodRequestRoutes = require('./src/routes/bloodRequestRoutes');
+const donorNotificationRoutes = require('./src/routes/donorNotificationRoutes');
+const donorNotificationController = require('./src/controllers/donorNotificationController');
+const verifyToken = require('./src/middleware/authMiddleware');
+const requireRole = require('./src/middleware/requireRole');
+
+app.use('/api/hospital/blood-requests', bloodRequestRoutes);
+app.use('/api/donor/notifications', donorNotificationRoutes);
+app.post('/api/donor/push-token', verifyToken, requireRole('donor'), donorNotificationController.registerPushToken);
+app.use('/api/donor', donorAuthRoutes);
+app.use('/api/superadmin', superAdminRoutes);
+app.use('/api/donor/events', eventRoutes);
+
+// Must stay LAST — after every route above.
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
