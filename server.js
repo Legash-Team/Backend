@@ -1,5 +1,20 @@
 // Entry point: Super Admin + Database + shared infra
 require('dotenv').config();
+const admin = require('firebase-admin');
+
+if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+  try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    console.log('Firebase Admin initialized.');
+  } catch (error) {
+    console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:', error.message);
+  }
+} else {
+  console.warn('FIREBASE_SERVICE_ACCOUNT_JSON is not set. Push notifications will be disabled.');
+}
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./src/config/db');
@@ -22,6 +37,15 @@ app.use('/api/auth', sharedAuthRoutes);
 app.get('/', (req, res) => res.json({ status: 'Legash API running' }));
 
 // Mount routes here, one line per person, added only when that person's file is ready:
+const bloodRequestRoutes = require('./src/routes/bloodRequestRoutes');
+const donorNotificationRoutes = require('./src/routes/donorNotificationRoutes');
+const donorNotificationController = require('./src/controllers/donorNotificationController');
+const verifyToken = require('./src/middleware/authMiddleware');
+const requireRole = require('./src/middleware/requireRole');
+
+app.use('/api/hospital/blood-requests', bloodRequestRoutes);
+app.use('/api/donor/notifications', donorNotificationRoutes);
+app.post('/api/donor/push-token', verifyToken, requireRole('donor'), donorNotificationController.registerPushToken);
 app.use('/api/donor', donorAuthRoutes);
 
 // Must stay LAST — after every route above.
