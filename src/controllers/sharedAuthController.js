@@ -24,8 +24,8 @@ exports.login = async (req, res, next) => {
     // 1. Check Hospital Account
     const hospital = await Hospital.findOne({ email: cleanEmail });
     if (hospital) {
-      const isMatch = await comparePassword(password, hospital.passwordHash || hospital.password);
-      if (!isMatch) {
+      const isHospitalPasswordMatch = await comparePassword(password, hospital.passwordHash || hospital.password);
+      if (!isHospitalPasswordMatch) {
         return res.status(401).json({
           success: false,
           error: 'Invalid email or password.'
@@ -63,8 +63,8 @@ exports.login = async (req, res, next) => {
     // 2. Check SuperAdmin Account
     const superAdmin = await SuperAdmin.findOne({ email: cleanEmail });
     if (superAdmin) {
-      const isMatch = await comparePassword(password, superAdmin.passwordHash || superAdmin.password);
-      if (!isMatch) {
+      const isAdminPasswordMatch = await comparePassword(password, superAdmin.passwordHash || superAdmin.password);
+      if (!isAdminPasswordMatch) {
         return res.status(401).json({
           success: false,
           error: 'Invalid email or password.'
@@ -136,7 +136,6 @@ exports.forgotPassword = async (req, res, next) => {
       }
     }
 
-    // Anti-enumeration: always return generic 200 message
     return res.status(200).json({
       success: true,
       message: 'If an account exists with that email, a reset code has been sent.'

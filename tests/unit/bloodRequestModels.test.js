@@ -7,7 +7,7 @@ describe('Unit Tests: BloodRequest Model', () => {
   const validRequest = {
     hospital: new mongoose.Types.ObjectId(),
     bloodType: 'O+',
-    quantityNeeded: 2,
+    _quantityNeeded: 2,
     closesAt: new Date(Date.now() + 8 * 60 * 60 * 1000),
   };
 

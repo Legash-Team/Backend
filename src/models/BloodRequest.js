@@ -7,7 +7,7 @@ const bloodRequestSchema = new mongoose.Schema({
     enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
     required: true,
   },
-  quantityNeeded: { type: Number, required: true, min: 1 },
+  _quantityNeeded: { type: Number, required: true, min: 1 },
   status: { type: String, enum: ['open', 'closed'], default: 'open' },
   closedReason: { type: String, enum: ['manual', 'auto-expired', null], default: null },
   closesAt: { type: Date, required: true },
