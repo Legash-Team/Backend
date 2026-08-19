@@ -12,6 +12,7 @@ const sharedAuthRoutes = require('./src/routes/sharedAuthRoutes');
 const donorAuthRoutes = require('./src/routes/donorAuthRoutes');
 const superAdminRoutes = require('./src/routes/superAdminRoutes');
 const eventRoutes = require('./src/routes/eventRoutes');
+const startAutoCloseJob = require('./src/jobs/autoCloseBloodRequests');
 
 const app = express();
 
@@ -35,4 +36,5 @@ const PORT = process.env.PORT || 3000;
 
 connectDB().then(() => {
   app.listen(PORT, () => console.log(`Legash API running on port ${PORT}`));
+  startAutoCloseJob();
 });
