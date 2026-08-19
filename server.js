@@ -1,4 +1,19 @@
 require('dotenv').config();
+const admin = require('firebase-admin');
+
+if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+  try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    console.log('Firebase Admin initialized.');
+  } catch (error) {
+    console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:', error.message);
+  }
+} else {
+  console.warn('FIREBASE_SERVICE_ACCOUNT_JSON is not set. Push notifications will be disabled.');
+}
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./src/config/db');
