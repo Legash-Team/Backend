@@ -12,6 +12,8 @@ router.use(verifyToken, requireRole('hospital'));
 router.get('/dashboard', hospitalController.getDashboard);
 router.get('/profile', hospitalController.getProfile);
 router.put('/profile', hospitalController.updateProfile);
+router.post('/profile/change-email/request', hospitalController.requestEmailChange);
+router.post('/profile/change-email/confirm', hospitalController.confirmEmailChange);
 router.post('/profile/change-password', hospitalController.changePassword);
 router.delete('/profile', hospitalController.deleteAccount);
 

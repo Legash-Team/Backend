@@ -4,6 +4,8 @@ const { hashPassword } = require('../utils/hashPassword');
 const { sendVerificationEmail } = require('../services/emailService');
 const generateResetCode = require('../utils/generateResetCode');
 
+const RESEND_COOLDOWN_SECONDS = 60;
+
 exports.registerHospital = async (req, res, next) => {
   try {
     const { hospitalName, name, email, password, phone, licenseNumber, location, agreedToTerms } = req.body;
@@ -61,8 +63,9 @@ exports.registerHospital = async (req, res, next) => {
       agreedToTerms: agreedToTerms !== undefined ? agreedToTerms : true,
       emailVerified: false,
       verificationStatus: 'pending',
-      verificationToken: code,
-      resetCodeExpiresAt: expiresAt,
+      verificationOtp: code,
+      verificationOtpExpiresAt: expiresAt,
+      verificationOtpLastSentAt: new Date(),
     });
 
     await hospital.save();
@@ -98,16 +101,28 @@ exports.verifyEmail = async (req, res, next) => {
     const cleanEmail = email.toLowerCase().trim();
     const hospital = await Hospital.findOne({ email: cleanEmail });
 
-    if (!hospital || (hospital.verificationToken !== code.trim() && hospital.resetCode !== code.trim())) {
+    if (!hospital) {
       return res.status(400).json({
         success: false,
         error: 'Invalid or expired verification code.',
       });
     }
 
-    // Set emailVerified = true, keep verificationStatus = 'pending'
+    if (
+      hospital.verificationOtp !== code.trim() ||
+      !hospital.verificationOtpExpiresAt ||
+      hospital.verificationOtpExpiresAt < new Date()
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid or expired verification code.',
+      });
+    }
+
+    // Explicitly keep verificationStatus = 'pending'
     hospital.emailVerified = true;
-    hospital.verificationToken = null;
+    hospital.verificationOtp = null;
+    hospital.verificationOtpExpiresAt = null;
     await hospital.save();
 
     return res.status(200).json({
@@ -130,9 +145,21 @@ exports.resendEmailCode = async (req, res, next) => {
     const hospital = await Hospital.findOne({ email: cleanEmail });
 
     if (hospital && !hospital.emailVerified) {
+      const now = new Date();
+      if (
+        hospital.verificationOtpLastSentAt &&
+        (now.getTime() - new Date(hospital.verificationOtpLastSentAt).getTime()) / 1000 < RESEND_COOLDOWN_SECONDS
+      ) {
+        return res.status(429).json({
+          success: false,
+          error: `Please wait ${RESEND_COOLDOWN_SECONDS} seconds before requesting a new code.`,
+        });
+      }
+
       const { code, expiresAt } = generateResetCode();
-      hospital.verificationToken = code;
-      hospital.resetCodeExpiresAt = expiresAt;
+      hospital.verificationOtp = code;
+      hospital.verificationOtpExpiresAt = expiresAt;
+      hospital.verificationOtpLastSentAt = now;
       await hospital.save();
 
       try {

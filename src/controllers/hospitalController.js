@@ -62,7 +62,7 @@ exports.getProfile = async (req, res, next) => {
 
 exports.updateProfile = async (req, res, next) => {
   try {
-    const { hospitalName, name, phone, email } = req.body;
+    const { hospitalName, name, phone } = req.body;
     const hospital = await Hospital.findById(req.user.id);
 
     if (!hospital || hospital.isDeleted) {
@@ -75,50 +75,93 @@ exports.updateProfile = async (req, res, next) => {
     }
 
     if (phone && phone.trim() !== hospital.phone) {
-      const existingPhone = await Hospital.findOne({ phone: phone.trim(), _id: { $ne: hospital._id } });
+      const cleanPhone = phone.trim();
+      const existingPhone = await Hospital.findOne({ phone: cleanPhone, _id: { $ne: hospital._id } });
       if (existingPhone) {
         return res.status(409).json({
           success: false,
           error: 'A hospital with this phone number is already registered.',
         });
       }
-      hospital.phone = phone.trim();
-    }
-
-    let emailChanged = false;
-    if (email && email.toLowerCase().trim() !== hospital.email) {
-      const cleanEmail = email.toLowerCase().trim();
-      const existingEmail = await Hospital.findOne({ email: cleanEmail, _id: { $ne: hospital._id } });
-      if (existingEmail) {
-        return res.status(409).json({
-          success: false,
-          error: 'A hospital with this email is already registered.',
-        });
-      }
-
-      hospital.email = cleanEmail;
-      hospital.emailVerified = false;
-      emailChanged = true;
-
-      const { code, expiresAt } = generateResetCode();
-      hospital.verificationToken = code;
-      hospital.resetCodeExpiresAt = expiresAt;
-
-      try {
-        await sendVerificationEmail(hospital.email, code);
-      } catch (err) {
-        console.warn('⚠️ SMTP Error on email update verification:', err.message);
-      }
+      hospital.phone = cleanPhone;
     }
 
     await hospital.save();
 
     return res.status(200).json({
       success: true,
-      message: emailChanged
-        ? 'Profile updated. Please verify your new email address.'
-        : 'Profile updated successfully.',
+      message: 'Profile updated successfully.',
       profile: sanitizeHospital(hospital),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.requestEmailChange = async (req, res, next) => {
+  try {
+    const { newEmail } = req.body;
+    if (!newEmail) {
+      return res.status(400).json({ success: false, error: 'New email is required.' });
+    }
+
+    const cleanEmail = newEmail.toLowerCase().trim();
+    const existing = await Hospital.findOne({ email: cleanEmail });
+    if (existing) {
+      return res.status(409).json({ success: false, error: 'Email is already registered.' });
+    }
+
+    const hospital = await Hospital.findById(req.user.id);
+    const { code, expiresAt } = generateResetCode();
+
+    hospital.pendingEmail = cleanEmail;
+    hospital.pendingEmailOtp = code;
+    hospital.pendingEmailOtpExpiresAt = expiresAt;
+    await hospital.save();
+
+    try {
+      await sendVerificationEmail(cleanEmail, code);
+    } catch (err) {
+      console.warn('⚠️ SMTP Error:', err.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Verification OTP sent to your new email address.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.confirmEmailChange = async (req, res, next) => {
+  try {
+    const { code } = req.body;
+    const hospital = await Hospital.findById(req.user.id);
+
+    if (!hospital || !hospital.pendingEmail || !hospital.pendingEmailOtp) {
+      return res.status(400).json({ success: false, error: 'No email change pending.' });
+    }
+
+    if (
+      hospital.pendingEmailOtp !== code?.trim() ||
+      !hospital.pendingEmailOtpExpiresAt ||
+      hospital.pendingEmailOtpExpiresAt < new Date()
+    ) {
+      return res.status(400).json({ success: false, error: 'Invalid or expired verification code.' });
+    }
+
+    hospital.email = hospital.pendingEmail;
+    hospital.pendingEmail = null;
+    hospital.pendingEmailOtp = null;
+    hospital.pendingEmailOtpExpiresAt = null;
+    hospital.emailVerified = true;
+    await hospital.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Email address updated successfully.',
+      email: hospital.email,
     });
   } catch (error) {
     next(error);
@@ -165,6 +208,7 @@ exports.deleteAccount = async (req, res, next) => {
     hospital.isDeleted = true;
     hospital.email = `${hospital.email}_deleted_${Date.now()}`;
     hospital.phone = `${hospital.phone}_deleted_${Date.now()}`;
+    hospital.licenseNumber = `${hospital.licenseNumber}_deleted_${Date.now()}`;
     await hospital.save();
 
     return res.status(200).json({
