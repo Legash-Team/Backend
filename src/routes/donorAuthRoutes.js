@@ -18,7 +18,7 @@ router.post('/set-pin', donorValidators.setPin, validateRequest, donorAuthContro
 router.post('/forgot-pin', donorValidators.forgotPin, validateRequest, donorAuthController.forgotDonorPin);
 router.post('/reset-pin', donorValidators.resetPin, validateRequest, donorAuthController.resetDonorPin);
 
-// Protected Donor Operations (Device Session Token)
+// Protected Donor Operations
 router.use(verifyToken, requireRole('donor'));
 
 router.post('/unlock', donorValidators.unlock, validateRequest, donorAuthController.unlockDonor);

@@ -4,30 +4,41 @@ const router = express.Router();
 const superAdminController = require('../controllers/superAdminController');
 const verifyToken = require('../middleware/authMiddleware');
 const requireRole = require('../middleware/requireRole');
+const requirePermission = require('../middleware/requirePermission');
 
-// Public Sub-Admin invitation password setup
-router.post('/accept-invitation', superAdminController.acceptSubAdminInvitation);
+// Public Admin Password Setup
+router.post('/setup-password', superAdminController.setupAdminPassword);
 
-// Protected Super Admin / Admin endpoints
+// Protected Super Admin & Scoped Admin routes
 router.use(verifyToken);
 
-// Pending hospital approvals & rejection
-router.get('/hospitals/pending', requireRole('superadmin'), superAdminController.listPendingHospitals);
-router.get('/pending-hospitals', requireRole('superadmin'), superAdminController.listPendingHospitals);
-router.post('/hospitals/:id/approve', superAdminController.approveHospital);
-router.post('/hospitals/:id/reject', superAdminController.rejectHospital);
+// Hospital Approvals
+router.get(
+  '/hospitals/pending',
+  requirePermission('canApproveHospitals'),
+  superAdminController.listPendingHospitals
+);
+router.post(
+  '/hospitals/:id/approve',
+  requirePermission('canApproveHospitals'),
+  superAdminController.approveHospital
+);
+router.post(
+  '/hospitals/:id/reject',
+  requirePermission('canApproveHospitals'),
+  superAdminController.rejectHospital
+);
 
 // Feedbacks Management
 router.get('/feedbacks', requireRole('superadmin'), superAdminController.listFeedbacks);
 router.patch('/feedbacks/:id/reviewed', requireRole('superadmin'), superAdminController.markFeedbackReviewed);
 
 // Events Management
-router.post('/events', superAdminController.createEvent);
-router.get('/events', superAdminController.listAdminEvents);
-router.delete('/events/:id', superAdminController.deleteEvent);
+router.post('/events', requirePermission('canPostEvents'), superAdminController.createEvent);
+router.get('/events', requirePermission('canPostEvents'), superAdminController.listAdminEvents);
 
-// Admin / Sub-Admin Management
-router.post('/admins', requireRole('superadmin'), superAdminController.createSubAdmin);
-router.get('/admins', requireRole('superadmin'), superAdminController.listSubAdmins);
+// Scoped Admin Management (Super Admin Exclusive)
+router.post('/admins', requireRole('superadmin'), superAdminController.createAdmin);
+router.get('/admins', requireRole('superadmin'), superAdminController.listAdmins);
 
 module.exports = router;

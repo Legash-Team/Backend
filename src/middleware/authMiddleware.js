@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const Hospital = require('../models/Hospital');
 const Donor = require('../models/Donor');
 const SuperAdmin = require('../models/SuperAdmin');
-const AdminUser = require('../models/AdminUser');
+const Admin = require('../models/Admin');
 
 async function verifyToken(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -26,7 +26,7 @@ async function verifyToken(req, res, next) {
     } else if (decoded.role === 'superadmin') {
       actor = await SuperAdmin.findById(decoded.id);
     } else if (decoded.role === 'admin') {
-      actor = await AdminUser.findById(decoded.id);
+      actor = await Admin.findById(decoded.id);
     }
 
     if (!actor || actor.isDeleted) {

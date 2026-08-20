@@ -1,7 +1,7 @@
 // Backend/src/controllers/sharedAuthController.js
 const Hospital = require('../models/Hospital');
 const SuperAdmin = require('../models/SuperAdmin');
-const AdminUser = require('../models/AdminUser');
+const Admin = require('../models/Admin');
 const { hashPassword, comparePassword } = require('../utils/hashPassword');
 const generateToken = require('../utils/generateToken');
 const generateResetCode = require('../utils/generateResetCode');
@@ -91,28 +91,32 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // 3. Check Sub-Admin Account (AdminUser)
-    const adminUser = await AdminUser.findOne({ email: cleanEmail, isDeleted: { $ne: true } });
-    if (adminUser && adminUser.isActive && adminUser.passwordHash) {
-      const isSubAdminPasswordMatch = await comparePassword(password, adminUser.passwordHash);
-      if (!isSubAdminPasswordMatch) {
+    // 3. Check Scoped Admin Account
+    const admin = await Admin.findOne({ email: cleanEmail, isDeleted: { $ne: true } });
+    if (admin && admin.emailVerified && admin.passwordHash) {
+      const isAdminMatch = await comparePassword(password, admin.passwordHash);
+      if (!isAdminMatch) {
         return res.status(401).json({
           success: false,
           error: 'Invalid email or password.',
         });
       }
 
-      const token = generateToken({ id: adminUser._id, role: 'admin', permissions: adminUser.permissions });
+      const token = generateToken({
+        id: admin._id,
+        role: 'admin',
+        permissions: admin.permissions,
+      });
 
       return res.status(200).json({
         success: true,
         token,
         role: 'admin',
-        permissions: adminUser.permissions,
+        permissions: admin.permissions,
         user: {
-          id: adminUser._id.toString(),
-          name: adminUser.name,
-          email: adminUser.email,
+          id: admin._id.toString(),
+          name: admin.name,
+          email: admin.email,
         },
       });
     }
@@ -157,6 +161,16 @@ exports.forgotPassword = async (req, res, next) => {
         try {
           await sendPasswordResetEmail(cleanEmail, code);
         } catch (err) {}
+      } else {
+        const admin = await Admin.findOne({ email: cleanEmail });
+        if (admin) {
+          admin.setupToken = code;
+          admin.setupTokenExpiresAt = expiresAt;
+          await admin.save();
+          try {
+            await sendPasswordResetEmail(cleanEmail, code);
+          } catch (err) {}
+        }
       }
     }
 
@@ -216,6 +230,26 @@ exports.resetPassword = async (req, res, next) => {
       superAdmin.resetCode = null;
       superAdmin.resetCodeExpiresAt = null;
       await superAdmin.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Password reset successful. You can now log in with your new password.',
+      });
+    }
+
+    const admin = await Admin.findOne({ email: cleanEmail });
+    if (admin && admin.setupToken === code.trim()) {
+      if (admin.setupTokenExpiresAt && admin.setupTokenExpiresAt < new Date()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid or expired reset code.',
+        });
+      }
+
+      admin.passwordHash = newHashedPassword;
+      admin.setupToken = null;
+      admin.setupTokenExpiresAt = null;
+      await admin.save();
 
       return res.status(200).json({
         success: true,
