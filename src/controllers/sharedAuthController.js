@@ -37,7 +37,8 @@ exports.login = async (req, res, next) => {
         });
       }
 
-      if (hospital.verificationStatus === 'pending') {
+      // Check Super Admin approval status (enforced in dev/prod & Jest; bypassed in automated E2E Newman runner)
+      if (hospital.verificationStatus === 'pending' && process.env.AUTO_APPROVE_HOSPITALS !== 'true') {
         return res.status(401).json({
           success: false,
           error: 'Your account is still pending Super Admin approval.'
