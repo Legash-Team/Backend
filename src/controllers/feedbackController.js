@@ -1,37 +1,35 @@
+// Backend/src/controllers/feedbackController.js
 const Feedback = require('../models/Feedback');
 const Hospital = require('../models/Hospital');
 
 exports.submitFeedback = async (req, res, next) => {
   try {
-    const { email, hospitalName, subject, message } = req.body;
+    const { email, hospitalEmail, hospitalName, message } = req.body;
+    const cleanEmail = (email || hospitalEmail || '').toLowerCase().trim();
 
-    if (!email || !message) {
+    if (!cleanEmail || !message || message.trim().length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'Email and feedback message are required.'
+        error: 'Email and message are required.',
       });
     }
 
-    const cleanEmail = email.toLowerCase().trim();
-    let finalHospitalName = hospitalName;
-
-    // Retrieve original hospital name if not provided
-    if (!finalHospitalName) {
-      const hospital = await Hospital.findOne({ email: cleanEmail });
-      finalHospitalName = hospital ? (hospital.hospitalName || hospital.name) : 'Hospital';
-    }
+    const hospital = await Hospital.findOne({ email: cleanEmail });
 
     const feedback = await Feedback.create({
-      hospitalEmail: cleanEmail,
-      hospitalName: finalHospitalName,
-      subject: subject || 'Registration Appeal Feedback',
-      message: message.trim()
+      hospital: hospital ? hospital._id : null,
+      email: cleanEmail,
+      hospitalName: hospitalName || (hospital ? hospital.hospitalName : 'Hospital'),
+      message: message.trim(),
+      rejectionReason: hospital ? hospital.rejectionReason : null,
+      status: 'new',
     });
 
     return res.status(201).json({
       success: true,
-      message: 'Your feedback has been received. Super Admin will review your appeal.',
-      data: feedback
+      message: 'Feedback submitted successfully. Super Admin will review your appeal.',
+      feedback,
+      data: feedback,
     });
   } catch (error) {
     next(error);

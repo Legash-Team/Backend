@@ -1,24 +1,27 @@
-const EventPost = require('../models/EventPost');
+// Backend/src/controllers/eventController.js
+const Event = require('../models/Event');
 
 exports.listPublicEvents = async (req, res, next) => {
   try {
-    const events = await EventPost.find().sort({ closesAt: -1 });
+    const now = new Date();
+    // Return only active, unexpired events for donor feed
+    const events = await Event.find({
+      closesAt: { $gt: now },
+    }).sort({ createdAt: -1 });
 
-    const formattedEvents = events.map(event => ({
+    const formattedEvents = events.map((event) => ({
       id: event._id,
-      title: event.title,
-      description: event.description,
       mediaUrl: event.mediaUrl,
       mediaType: event.mediaType,
-      applicationLink: event.applicationLink,
+      description: event.description,
+      applyLink: event.applyLink,
       closesAt: event.closesAt,
-      isOpen: new Date(event.closesAt) > new Date(),
-      createdAt: event.createdAt
+      status: 'open',
     }));
 
     return res.status(200).json({
       success: true,
-      data: formattedEvents
+      events: formattedEvents,
     });
   } catch (error) {
     next(error);

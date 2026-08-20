@@ -1,9 +1,10 @@
+// Backend/src/controllers/superAdminController.js
 const crypto = require('crypto');
 const mongoose = require('mongoose');
 const Hospital = require('../models/Hospital');
 const Feedback = require('../models/Feedback');
-const EventPost = require('../models/EventPost');
-const AdminUser = require('../models/AdminUser');
+const Event = require('../models/Event');
+const Admin = require('../models/Admin');
 const emailService = require('../services/emailService');
 const { hashPassword } = require('../utils/hashPassword');
 
@@ -11,10 +12,11 @@ exports.listPendingHospitals = async (req, res, next) => {
   try {
     const hospitals = await Hospital.find({
       verificationStatus: 'pending',
-      emailVerified: true
-    });
+      emailVerified: true,
+      isDeleted: { $ne: true },
+    }).sort({ createdAt: -1 });
 
-    const formattedHospitals = hospitals.map(hospital => {
+    const formattedHospitals = hospitals.map((hospital) => {
       const lat = hospital.location?.coordinates?.[1] ?? 0;
       const lng = hospital.location?.coordinates?.[0] ?? 0;
 
@@ -25,13 +27,13 @@ exports.listPendingHospitals = async (req, res, next) => {
         phone: hospital.phone,
         licenseNumber: hospital.licenseNumber,
         location: { lat, lng },
-        registeredAt: hospital.createdAt
+        registeredAt: hospital.createdAt,
       };
     });
 
     return res.status(200).json({
       success: true,
-      hospitals: formattedHospitals
+      hospitals: formattedHospitals,
     });
   } catch (error) {
     next(error);
@@ -45,7 +47,7 @@ exports.approveHospital = async (req, res, next) => {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
-        error: 'This hospital is not pending approval.'
+        error: 'This hospital is not pending approval.',
       });
     }
 
@@ -54,7 +56,7 @@ exports.approveHospital = async (req, res, next) => {
     if (!hospital || hospital.verificationStatus !== 'pending') {
       return res.status(400).json({
         success: false,
-        error: 'This hospital is not pending approval.'
+        error: 'This hospital is not pending approval.',
       });
     }
 
@@ -69,7 +71,7 @@ exports.approveHospital = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Hospital approved. They have been notified and can now log in.'
+      message: 'Hospital approved. They have been notified and can now log in.',
     });
   } catch (error) {
     next(error);
@@ -81,10 +83,17 @@ exports.rejectHospital = async (req, res, next) => {
     const { id } = req.params;
     const { reason } = req.body || {};
 
+    if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'A rejection reason is required.',
+      });
+    }
+
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
-        error: 'This hospital is not pending approval.'
+        error: 'This hospital is not pending approval.',
       });
     }
 
@@ -93,72 +102,88 @@ exports.rejectHospital = async (req, res, next) => {
     if (!hospital || hospital.verificationStatus !== 'pending') {
       return res.status(400).json({
         success: false,
-        error: 'This hospital is not pending approval.'
+        error: 'This hospital is not pending approval.',
       });
     }
 
     hospital.verificationStatus = 'rejected';
-    hospital.rejectionReason = reason || null;
+    hospital.rejectionReason = reason.trim();
     await hospital.save();
 
     try {
-      if (reason) {
-        await emailService.sendRejectionEmail(hospital.email, reason);
-      } else {
-        await emailService.sendRejectionEmail(hospital.email);
-      }
+      await emailService.sendRejectionEmail(hospital.email, reason.trim());
     } catch (emailErr) {
       console.warn('⚠️ SMTP Error sending rejection email:', emailErr.message);
     }
 
     return res.status(200).json({
       success: true,
-      message: 'Hospital rejected. They have been notified.'
+      message: 'Hospital rejected. They have been notified.',
     });
   } catch (error) {
     next(error);
   }
 };
 
-// Feedbacks Management
 exports.listFeedbacks = async (req, res, next) => {
   try {
     const feedbacks = await Feedback.find().sort({ createdAt: -1 });
     return res.status(200).json({
       success: true,
-      data: feedbacks
+      feedbacks,
     });
   } catch (error) {
     next(error);
   }
 };
 
-// Events Management
+exports.markFeedbackReviewed = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(404).json({ success: false, error: 'Feedback not found.' });
+    }
+
+    const feedback = await Feedback.findByIdAndUpdate(id, { status: 'reviewed' }, { new: true });
+    if (!feedback) {
+      return res.status(404).json({ success: false, error: 'Feedback not found.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Feedback marked as reviewed.',
+      feedback,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.createEvent = async (req, res, next) => {
   try {
-    const { title, description, mediaUrl, mediaType, applicationLink, closesAt } = req.body;
+    const { mediaUrl, mediaType, description, applyLink, closesAt } = req.body;
 
-    if (!title || !description || !closesAt) {
+    if (!description || !closesAt) {
       return res.status(400).json({
         success: false,
-        error: 'Title, description, and closesAt timestamp are required.'
+        error: 'Description and closesAt timestamp are required.',
       });
     }
 
-    const event = await EventPost.create({
-      title,
-      description,
+    const event = await Event.create({
       mediaUrl: mediaUrl || null,
-      mediaType: mediaType || null,
-      applicationLink: applicationLink || null,
+      mediaType: mediaType || 'image',
+      description: description.trim(),
+      applyLink: applyLink || null,
       closesAt: new Date(closesAt),
-      createdBy: req.user?.id
+      createdBy: req.user?.id,
+      creatorModel: req.user?.role === 'superadmin' ? 'SuperAdmin' : 'Admin',
     });
 
     return res.status(201).json({
       success: true,
       message: 'Event posted successfully.',
-      data: event
+      event,
     });
   } catch (error) {
     next(error);
@@ -167,162 +192,130 @@ exports.createEvent = async (req, res, next) => {
 
 exports.listAdminEvents = async (req, res, next) => {
   try {
-    const events = await EventPost.find().sort({ createdAt: -1 });
+    const events = await Event.find().sort({ createdAt: -1 });
     return res.status(200).json({
       success: true,
-      data: events
+      events,
     });
   } catch (error) {
     next(error);
   }
 };
 
-exports.deleteEvent = async (req, res, next) => {
+exports.createAdmin = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    await EventPost.findByIdAndDelete(id);
-    return res.status(200).json({
-      success: true,
-      message: 'Event deleted successfully.'
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+    const { name, email, permissions } = req.body;
 
-// Sub-Admin RBAC Creation & Management
-exports.createSubAdmin = async (req, res, next) => {
-  try {
-    const { name, email, role } = req.body;
-
-    if (!name || !email || !role) {
+    if (!name || !email) {
       return res.status(400).json({
         success: false,
-        error: 'Name, email, and role are required.'
-      });
-    }
-
-    let permissions = [];
-    if (role === 'can_approve_hospitals') {
-      permissions = ['can_approve_hospitals'];
-    } else if (role === 'can_post_events') {
-      permissions = ['can_post_events'];
-    } else if (role === 'both') {
-      permissions = ['can_approve_hospitals', 'can_post_events'];
-    } else if (Array.isArray(role)) {
-      permissions = role;
-    } else {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid role. Options: can_approve_hospitals, can_post_events, both'
+        error: 'Name and email are required.',
       });
     }
 
     const cleanEmail = email.toLowerCase().trim();
-    const existing = await AdminUser.findOne({ email: cleanEmail });
+    const existing = await Admin.findOne({ email: cleanEmail });
     if (existing) {
       return res.status(409).json({
         success: false,
-        error: 'An admin with this email already exists.'
+        error: 'An admin with this email already exists.',
       });
     }
 
-    const invitationToken = crypto.randomBytes(32).toString('hex');
-    const invitationExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
+    const canApproveHospitals = Boolean(permissions?.canApproveHospitals);
+    const canPostEvents = Boolean(permissions?.canPostEvents);
 
-    const adminUser = await AdminUser.create({
-      name,
+    const setupToken = crypto.randomBytes(32).toString('hex');
+    const setupTokenExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+
+    const admin = await Admin.create({
+      name: name.trim(),
       email: cleanEmail,
-      permissions,
-      invitationToken,
-      invitationExpiresAt,
-      isActive: false
+      permissions: {
+        canApproveHospitals,
+        canPostEvents,
+      },
+      setupToken,
+      setupTokenExpiresAt,
+      emailVerified: false,
+      createdBy: req.user?.id,
     });
 
-    const invitationLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/admin/setup-password?token=${invitationToken}`;
     try {
-      await emailService.sendAdminInvitationEmail(cleanEmail, invitationLink, permissions);
+      await emailService.sendAdminSetupEmail(cleanEmail, setupToken, admin.permissions);
     } catch (e) {
-      console.warn('⚠️ SMTP Error:', e.message);
+      console.warn('⚠️ SMTP Error sending Admin setup email:', e.message);
     }
 
     return res.status(201).json({
       success: true,
-      message: 'Admin invitation sent successfully.',
-      adminId: adminUser._id,
-      invitationToken: invitationToken,
-      token: invitationToken,
-      data: {
-        adminId: adminUser._id,
-        name: adminUser.name,
-        email: adminUser.email,
-        permissions: adminUser.permissions,
-        invitationToken: invitationToken
-      }
+      message: 'Admin account created and setup invitation sent.',
+      admin: {
+        id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        permissions: admin.permissions,
+      },
     });
   } catch (error) {
     next(error);
   }
 };
 
-exports.listSubAdmins = async (req, res, next) => {
+exports.listAdmins = async (req, res, next) => {
   try {
-    const subAdmins = await AdminUser.find({ isDeleted: { $ne: true } })
-      .select('-passwordHash')
+    const admins = await Admin.find({ isDeleted: { $ne: true } })
+      .select('-passwordHash -setupToken -setupTokenExpiresAt')
       .sort({ createdAt: -1 });
-
-    const formatted = subAdmins.map(admin => ({
-      id: admin._id,
-      name: admin.name,
-      email: admin.email,
-      permissions: admin.permissions,
-      isActive: admin.isActive,
-      createdAt: admin.createdAt
-    }));
 
     return res.status(200).json({
       success: true,
-      subAdmins: formatted,
-      data: formatted
+      admins,
     });
   } catch (error) {
     next(error);
   }
 };
 
-exports.acceptSubAdminInvitation = async (req, res, next) => {
+exports.setupAdminPassword = async (req, res, next) => {
   try {
-    const token = req.body.token || req.body.invitationToken;
-    const password = req.body.password || req.body.newPassword;
+    const { token, password, confirmPassword } = req.body;
 
     if (!token || !password) {
       return res.status(400).json({
         success: false,
-        error: 'Token and new password are required.'
+        error: 'Setup token and new password are required.',
       });
     }
 
-    const admin = await AdminUser.findOne({
-      invitationToken: token,
-      invitationExpiresAt: { $gt: new Date() }
+    if (confirmPassword && password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password confirmation does not match.',
+      });
+    }
+
+    const admin = await Admin.findOne({
+      setupToken: token.trim(),
+      setupTokenExpiresAt: { $gt: new Date() },
     });
 
     if (!admin) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid or expired invitation token.'
+        error: 'Invalid or expired setup token.',
       });
     }
 
     admin.passwordHash = await hashPassword(password);
-    admin.invitationToken = null;
-    admin.invitationExpiresAt = null;
-    admin.isActive = true;
+    admin.setupToken = null;
+    admin.setupTokenExpiresAt = null;
+    admin.emailVerified = true;
     await admin.save();
 
     return res.status(200).json({
       success: true,
-      message: 'Admin account password configured. You can now log in.'
+      message: 'Password configured successfully. You can now log in.',
     });
   } catch (error) {
     next(error);
