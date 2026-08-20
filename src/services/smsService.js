@@ -41,7 +41,7 @@ async function verifyOtp(phone, code) {
   return true;
 }
 
-async function sendBloodAlertSms(phone, { hospitalName, bloodType, quantityNeeded }) {
+async function sendBloodAlertSms(phone, { hospitalName, bloodType, _quantityNeeded }) {
   const message = `Legash: ${hospitalName} needs ${bloodType} blood. Open the app to respond.`;
   const response = await fetch(`${process.env.SMS_GATEWAY_BASE_URL}/api/v1/sms/send`, {
     method: 'POST',

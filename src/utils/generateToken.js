@@ -7,7 +7,7 @@ const jwt = require('jsonwebtoken');
 
 function generateToken(payload) {
   const secret = process.env.JWT_SECRET || 'legash-ci-secret-key-32-chars-long';
-  return jwt.sign(payload, secret, { expiresIn: '24h' });
+  return jwt.sign(payload, secret, { expiresIn: '90d' });
 }
 
 module.exports = generateToken;

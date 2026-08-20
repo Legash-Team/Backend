@@ -5,6 +5,7 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'legash-ci-secret-key-32-char
 process.env.SMS_GATEWAY_BASE_URL = process.env.SMS_GATEWAY_BASE_URL || 'http://127.0.0.1/mock-sms';
 process.env.SMS_GATEWAY_API_KEY = process.env.SMS_GATEWAY_API_KEY || 'mock-test-key';
 process.env.NODE_ENV = 'test';
+process.env.AUTO_APPROVE_HOSPITALS = 'true'; // Allows Newman automated runner to log in after email verification
 
 // 2. Intercept outgoing SMS fetch requests during contract testing
 const originalFetch = global.fetch;
