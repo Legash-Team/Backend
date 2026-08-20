@@ -1,28 +1,16 @@
-const swaggerJsdoc = require('swagger-jsdoc');
+// Backend/src/config/swagger.js
+const fs = require('fs');
+const path = require('path');
 
-const options = {
-  definition: {
-    openapi: '3.0.0',
-    info: {
-      title: 'Legash API - Sprint 1',
-      version: '1.0.0',
-      description: 'Registration, login, and password reset endpoints',
-    },
-    servers: [{ url: 'http://localhost:3000/api' }],
-    components: {
-      securitySchemes: {
-        bearerAuth: {
-          type: 'http',
-          scheme: 'bearer',
-          bearerFormat: 'JWT',
-        },
-      },
-    },
-  },
-  // This tells Swagger which files to scan for the comment blocks
-  apis: ['./src/routes/*.js'],
-};
+const openApiPath = path.resolve(__dirname, '../../openapi.json');
+let openApiSpec = {};
 
-const swaggerSpec = swaggerJsdoc(options);
+try {
+  if (fs.existsSync(openApiPath)) {
+    openApiSpec = JSON.parse(fs.readFileSync(openApiPath, 'utf8'));
+  }
+} catch (err) {
+  console.warn('⚠️ Could not load openapi.json directly, using fallback.', err.message);
+}
 
-module.exports = swaggerSpec;
+module.exports = openApiSpec;

@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  # MongoDB Service
+  mongo:
+    image: mongo:7.0
+    container_name: legash_mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpassword
+      MONGO_INITDB_DATABASE: legash
+    volumes:
+      - mongo_data:/data/db
+
+  # Backend App Service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: legash_backend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      # Points to the 'mongo' service defined above
+      MONGO_URI: mongodb://root:rootpassword@mongo:27017/legash?authSource=admin
+    depends_on:
+      - mongo
+
+volumes:
+  mongo_data:
