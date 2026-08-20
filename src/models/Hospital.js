@@ -66,14 +66,18 @@ const hospitalSchema = new mongoose.Schema({
   },
   emailVerified: { type: Boolean, default: false },
   verificationStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  rejectionReason: { type: String, default: null },
   verificationToken: { type: String, default: null },
+  pendingEmail: { type: String, default: null },
+  pendingEmailToken: { type: String, default: null },
   agreedToTerms: { type: Boolean, default: true },
   resetCode: { type: String, default: null },
   resetCodeExpiresAt: { type: Date, default: null },
   bloodStock: {
     type: [bloodStockSchema],
     default: DEFAULT_BLOOD_STOCK
-  }
+  },
+  isDeleted: { type: Boolean, default: false }
 }, { 
   timestamps: true,
   toJSON: { virtuals: true },

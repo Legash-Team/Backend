@@ -10,7 +10,7 @@ exports.registerHospital = async (req, res, next) => {
     const finalName = hospitalName || name;
     const cleanEmail = email ? email.toLowerCase().trim() : '';
 
-    // Check for existing hospital
+    // 1. Strict Duplicate Checks (Email, Phone, License Number)
     const existingHospital = await Hospital.findOne({
       $or: [
         { email: cleanEmail },
@@ -19,7 +19,28 @@ exports.registerHospital = async (req, res, next) => {
       ]
     });
 
-    // Parse location coordinates
+    if (existingHospital) {
+      if (existingHospital.email === cleanEmail) {
+        return res.status(409).json({
+          success: false,
+          error: 'A hospital with this email is already registered.'
+        });
+      }
+      if (existingHospital.phone === phone) {
+        return res.status(409).json({
+          success: false,
+          error: 'A hospital with this phone number is already registered.'
+        });
+      }
+      if (existingHospital.licenseNumber === licenseNumber) {
+        return res.status(409).json({
+          success: false,
+          error: 'A hospital with this license number is already registered.'
+        });
+      }
+    }
+
+    // 2. Parse Coordinates
     let coordinates = [38.75, 9.03];
     if (location) {
       if (Array.isArray(location.coordinates) && location.coordinates.length === 2) {
@@ -31,39 +52,6 @@ exports.registerHospital = async (req, res, next) => {
 
     const hashedPassword = await hashPassword(password);
     const verificationToken = crypto.randomBytes(32).toString('hex');
-
-    // Idempotent test handling: if it already exists in dev/test, reset and allow re-registration
-    if (existingHospital) {
-      if (process.env.NODE_ENV !== 'production' || !existingHospital.emailVerified) {
-        existingHospital.hospitalName = finalName;
-        existingHospital.email = cleanEmail;
-        existingHospital.passwordHash = hashedPassword;
-        existingHospital.phone = phone;
-        existingHospital.licenseNumber = licenseNumber;
-        existingHospital.location = {
-          type: 'Point',
-          coordinates,
-          address: location?.address || 'Addis Ababa, Ethiopia'
-        };
-        existingHospital.emailVerified = false;
-        existingHospital.verificationToken = verificationToken;
-        existingHospital.verificationStatus = 'pending';
-        existingHospital.agreedToTerms = agreedToTerms !== undefined ? agreedToTerms : true;
-
-        await existingHospital.save();
-
-        return res.status(201).json({
-          success: true,
-          message: 'Hospital registered successfully. Please verify your email.',
-          hospitalId: existingHospital._id.toString()
-        });
-      }
-
-      return res.status(409).json({
-        success: false,
-        error: 'A hospital with this email is already registered.'
-      });
-    }
 
     const hospital = new Hospital({
       hospitalName: finalName,
@@ -84,15 +72,13 @@ exports.registerHospital = async (req, res, next) => {
 
     await hospital.save();
 
-    const verificationLink = `http://localhost:3000/api/hospital/verify-email?token=${verificationToken}`;
-
+    // 3. Send Verification Email
+    const verificationLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/api/hospitals/verify-email/${hospital._id}`;
     try {
-      if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example') || process.env.NODE_ENV === 'test') {
-        // Safe mock log
-      } else {
-        await sendVerificationEmail(hospital.email, verificationLink);
-      }
-    } catch (emailErr) {}
+      await sendVerificationEmail(hospital.email, verificationLink);
+    } catch (emailErr) {
+      console.warn('⚠️ SMTP Email dispatch error:', emailErr.message);
+    }
 
     return res.status(201).json({
       success: true,
@@ -118,10 +104,8 @@ exports.verifyEmail = async (req, res, next) => {
 
     token = token.replace(/^=/, '').trim();
 
-    // 1. Try finding hospital by verificationToken
     let hospital = await Hospital.findOne({ verificationToken: token });
 
-    // 2. Fallback: try finding by _id if token is a valid MongoDB ObjectId
     if (!hospital && mongoose.Types.ObjectId.isValid(token)) {
       hospital = await Hospital.findById(token);
     }
@@ -133,15 +117,21 @@ exports.verifyEmail = async (req, res, next) => {
       });
     }
 
-    // Set both emailVerified AND verificationStatus to 'approved'
+    if (hospital.emailVerified && hospital.verificationStatus === 'approved') {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is already verified.'
+      });
+    }
+
+    // Set emailVerified = true, keep verificationStatus = 'pending' for Super Admin approval
     hospital.emailVerified = true;
-    hospital.verificationStatus = 'approved';
     hospital.verificationToken = null;
     await hospital.save();
 
     return res.status(200).json({
       success: true,
-      message: 'Email verified successfully. You can now log in.'
+      message: 'Email verified successfully. You can now log in once approved by the admin.'
     });
   } catch (error) {
     next(error);

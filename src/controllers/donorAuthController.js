@@ -7,10 +7,20 @@ async function registerDonor(req, res, next) {
   try {
     const { name, password, phone, fin, gender, bloodType, location, agreedToTerms } = req.body;
 
-    const existing = await Donor.findOne({ phone });
+    // Check duplicate phone or Fayda ID
+    const existing = await Donor.findOne({
+      $or: [{ phone }, { fin }]
+    });
+
     if (existing) {
-      return res.status(409).json({ success: false, error: 'Phone number already registered.' });
+      if (existing.phone === phone) {
+        return res.status(409).json({ success: false, error: 'Phone number already registered.' });
+      }
+      if (existing.fin === fin) {
+        return res.status(409).json({ success: false, error: 'Fayda National ID is already registered.' });
+      }
     }
+
 
     const passwordHash = await hashPassword(password);
 
