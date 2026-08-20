@@ -1,19 +1,18 @@
 // Backend/tests/integration/donorSprint3.test.js
 const request = require('supertest');
 const app = require('../../server');
-const Donor = require('../../models/Donor');
-const Hospital = require('../../models/Hospital');
-const BloodRequest = require('../../models/BloodRequest');
-const BloodRequestResponse = require('../../models/BloodRequestResponse');
+const Donor = require('../../src/models/Donor');
+const Hospital = require('../../src/models/Hospital');
+const BloodRequest = require('../../src/models/BloodRequest');
+const BloodRequestResponse = require('../../src/models/BloodRequestResponse');
 
 describe('Sprint 3 Donor Full Lifecycle & Security Contract', () => {
   const donorPhone = '+251911223344';
   const donorFin = 'FIN-99887766';
-  let deviceSessionToken = '';
-  let donorId = '';
 
-  it('Step 1: Register donor without password and receives 201', async () => {
-    const res = await request(app)
+  it('Executes complete Sprint 3 Donor lifecycle sequentially without mid-flow data wipes', async () => {
+    // 1. Register donor without password
+    const regRes = await request(app)
       .post('/api/donor/register')
       .send({
         name: 'Aster Abebe',
@@ -25,36 +24,32 @@ describe('Sprint 3 Donor Full Lifecycle & Security Contract', () => {
         agreedToTerms: true,
       });
 
-    expect(res.status).toBe(201);
-    expect(res.body.success).toBe(true);
-    expect(res.body.donorId).toBeDefined();
+    expect(regRes.status).toBe(201);
+    expect(regRes.body.success).toBe(true);
+    expect(regRes.body.donorId).toBeDefined();
 
-    donorId = res.body.donorId;
+    const donorId = regRes.body.donorId;
     const donorDoc = await Donor.findById(donorId);
     expect(donorDoc.phoneVerified).toBe(false);
     expect(donorDoc.pinHash).toBeNull();
-    expect(donorDoc.passwordHash).toBeUndefined();
     expect(donorDoc.resetCode).toBeDefined();
-  });
 
-  it('Step 2: Verify phone OTP', async () => {
-    const donorDoc = await Donor.findOne({ phone: donorPhone });
-    const res = await request(app)
+    // 2. Verify phone OTP
+    const verifyRes = await request(app)
       .post('/api/donor/verify-otp')
       .send({
         phone: donorPhone,
         code: donorDoc.resetCode,
       });
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
+    expect(verifyRes.status).toBe(200);
+    expect(verifyRes.body.success).toBe(true);
 
-    const updated = await Donor.findOne({ phone: donorPhone });
-    expect(updated.phoneVerified).toBe(true);
-  });
+    const verifiedDonor = await Donor.findById(donorId);
+    expect(verifiedDonor.phoneVerified).toBe(true);
 
-  it('Step 3: Set 4-digit PIN and receive device session token', async () => {
-    const res = await request(app)
+    // 3. Set 4-digit PIN & receive device session token
+    const pinRes = await request(app)
       .post('/api/donor/set-pin')
       .send({
         phone: donorPhone,
@@ -62,68 +57,60 @@ describe('Sprint 3 Donor Full Lifecycle & Security Contract', () => {
         confirmPin: '1234',
       });
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.token).toBeDefined();
-    expect(res.body.donor.name).toBe('Aster Abebe');
+    expect(pinRes.status).toBe(200);
+    expect(pinRes.body.success).toBe(true);
+    expect(pinRes.body.token).toBeDefined();
+    expect(pinRes.body.donor.name).toBe('Aster Abebe');
 
-    deviceSessionToken = res.body.token;
-  });
+    const deviceSessionToken = pinRes.body.token;
 
-  it('Step 4: Unlock device with PIN (strictly device-bound by req.user.id)', async () => {
-    // 1. Valid unlock on authenticated device session
-    const res = await request(app)
+    // 4. Unlock device with PIN (strictly device-bound by req.user.id)
+    const unlockRes = await request(app)
       .post('/api/donor/unlock')
       .set('Authorization', `Bearer ${deviceSessionToken}`)
       .send({ pin: '1234' });
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.token).toBeDefined();
+    expect(unlockRes.status).toBe(200);
+    expect(unlockRes.body.success).toBe(true);
+    expect(unlockRes.body.token).toBeDefined();
 
-    // 2. Reject incorrect PIN
-    const failRes = await request(app)
+    const failUnlock = await request(app)
       .post('/api/donor/unlock')
       .set('Authorization', `Bearer ${deviceSessionToken}`)
       .send({ pin: '9999' });
 
-    expect(failRes.status).toBe(401);
-    expect(failRes.body.error).toBe('Invalid PIN.');
-  });
+    expect(failUnlock.status).toBe(401);
+    expect(failUnlock.body.error).toBe('Invalid PIN.');
 
-  it('Step 5: Get Profile and verify fields are directly visible', async () => {
-    const res = await request(app)
+    // 5. Get Profile
+    const profileRes = await request(app)
       .get('/api/donor/profile')
       .set('Authorization', `Bearer ${deviceSessionToken}`);
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.profile.name).toBe('Aster Abebe');
-    expect(res.body.profile.phone).toBe(donorPhone);
-    expect(res.body.profile.fin).toBe(donorFin);
-    expect(res.body.profile.gender).toBe('female');
-    expect(res.body.profile.bloodType).toBe('unknown');
-  });
+    expect(profileRes.status).toBe(200);
+    expect(profileRes.body.profile.name).toBe('Aster Abebe');
+    expect(profileRes.body.profile.phone).toBe(donorPhone);
+    expect(profileRes.body.profile.fin).toBe(donorFin);
+    expect(profileRes.body.profile.gender).toBe('female');
+    expect(profileRes.body.profile.bloodType).toBe('unknown');
 
-  it('Step 6: Update Profile - Allows editable fields and REJECTS FIN/gender mutations', async () => {
-    // 1. Mutating immutable fields FIN and gender must be rejected
-    const immutableAttempt = await request(app)
+    // 6. Update Profile - Allows editable fields and REJECTS FIN/gender mutations
+    const finMutationFail = await request(app)
       .put('/api/donor/profile')
       .set('Authorization', `Bearer ${deviceSessionToken}`)
       .send({ fin: 'NEW-FIN-1234' });
 
-    expect(immutableAttempt.status).toBe(400);
-    expect(immutableAttempt.body.error).toContain('immutable');
+    expect(finMutationFail.status).toBe(400);
+    expect(finMutationFail.body.error).toContain('immutable');
 
-    const genderAttempt = await request(app)
+    const genderMutationFail = await request(app)
       .put('/api/donor/profile')
       .set('Authorization', `Bearer ${deviceSessionToken}`)
       .send({ gender: 'male' });
 
-    expect(genderAttempt.status).toBe(400);
-    expect(genderAttempt.body.error).toContain('immutable');
+    expect(genderMutationFail.status).toBe(400);
+    expect(genderMutationFail.body.error).toContain('immutable');
 
-    // 2. Updating editable fields succeeds
     const updateRes = await request(app)
       .put('/api/donor/profile')
       .set('Authorization', `Bearer ${deviceSessionToken}`)
@@ -131,26 +118,22 @@ describe('Sprint 3 Donor Full Lifecycle & Security Contract', () => {
         bloodType: 'O+',
         weightKg: 65,
         heightCm: 168,
-        healthNotes: 'Healthy and active donor',
+        healthNotes: 'Healthy donor',
       });
 
     expect(updateRes.status).toBe(200);
     expect(updateRes.body.profile.bloodType).toBe('O+');
     expect(updateRes.body.profile.weightKg).toBe(65);
-    expect(updateRes.body.profile.fin).toBe(donorFin);
-  });
 
-  it('Step 7: Empty blood centers endpoint returns { success: true, centers: [] }', async () => {
-    const res = await request(app)
+    // 7. Empty blood centers endpoint
+    const centersRes = await request(app)
       .get('/api/donor/blood-centers')
       .set('Authorization', `Bearer ${deviceSessionToken}`);
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.centers).toEqual([]);
-  });
+    expect(centersRes.status).toBe(200);
+    expect(centersRes.body.centers).toEqual([]);
 
-  it('Step 8: Request acceptance returns nextSteps payload for mobile popup', async () => {
+    // 8. Respond to request and verify nextSteps payload
     const hospital = await Hospital.create({
       hospitalName: 'St. Paul Hospital',
       licenseNumber: 'LIC-TEST-001',

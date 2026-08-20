@@ -1,13 +1,25 @@
 // Backend/src/controllers/donorNotificationController.js
+const BloodRequest = require('../models/BloodRequest');
 const BloodRequestResponse = require('../models/BloodRequestResponse');
 const Donor = require('../models/Donor');
 
+// Helper to auto-expire open blood requests that have passed closesAt
+async function expirePastBloodRequests() {
+  const now = new Date();
+  await BloodRequest.updateMany(
+    { status: 'open', closesAt: { $lte: now } },
+    { status: 'closed', closedReason: 'expired', closedAt: now }
+  );
+}
+
 exports.list = async (req, res, next) => {
   try {
+    // Auto-expire requests past closesAt
+    await expirePastBloodRequests();
+
     const filter = { donor: req.user.id };
 
     if (req.query.status) {
-      // Ongoing maps to pending internally
       if (req.query.status === 'ongoing' || req.query.status === 'pending') {
         filter.status = 'pending';
       } else if (req.query.status === 'accepted' || req.query.status === 'denied') {
@@ -66,7 +78,16 @@ exports.respond = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Notification not found.' });
     }
 
-    if (!responseDoc.bloodRequest || responseDoc.bloodRequest.status === 'closed') {
+    const parentReq = responseDoc.bloodRequest;
+
+    // Check if request is closed or has passed closesAt
+    if (!parentReq || parentReq.status === 'closed' || new Date(parentReq.closesAt) <= new Date()) {
+      if (parentReq && parentReq.status === 'open') {
+        parentReq.status = 'closed';
+        parentReq.closedReason = 'expired';
+        parentReq.closedAt = new Date();
+        await parentReq.save();
+      }
       return res.status(400).json({ success: false, error: 'This request has already closed.' });
     }
 
@@ -78,7 +99,7 @@ exports.respond = async (req, res, next) => {
     responseDoc.respondedAt = new Date();
     await responseDoc.save();
 
-    const hospital = responseDoc.bloodRequest.hospital;
+    const hospital = parentReq.hospital;
     const lat = hospital?.location?.coordinates?.[1] ?? null;
     const lng = hospital?.location?.coordinates?.[0] ?? null;
 

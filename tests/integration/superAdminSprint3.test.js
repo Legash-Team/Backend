@@ -1,13 +1,14 @@
 // Backend/tests/integration/superAdminSprint3.test.js
 const request = require('supertest');
 const app = require('../../server');
-const Hospital = require('../../models/Hospital');
-const SuperAdmin = require('../../models/SuperAdmin');
-const Admin = require('../../models/Admin');
-const Event = require('../../models/Event');
-const Feedback = require('../../models/Feedback');
-const { hashPassword } = require('../../utils/hashPassword');
-const generateToken = require('../../utils/generateToken');
+const Hospital = require('../../src/models/Hospital');
+const SuperAdmin = require('../../src/models/SuperAdmin');
+const Admin = require('../../src/models/Admin');
+const Donor = require('../../src/models/Donor');
+const Event = require('../../src/models/Event');
+const Feedback = require('../../src/models/Feedback');
+const { hashPassword } = require('../../src/utils/hashPassword');
+const generateToken = require('../../src/utils/generateToken');
 
 describe('Sprint 3 Super Admin, Feedback, Events, and Admin RBAC', () => {
   let superAdminToken = '';
@@ -39,7 +40,6 @@ describe('Sprint 3 Super Admin, Feedback, Events, and Admin RBAC', () => {
   });
 
   it('1. Rejects hospital requiring a reason, persists reason, and blocks login', async () => {
-    // Missing reason rejection fails
     const failRes = await request(app)
       .post(`/api/superadmin/hospitals/${pendingHospitalId}/reject`)
       .set('Authorization', `Bearer ${superAdminToken}`)
@@ -48,7 +48,6 @@ describe('Sprint 3 Super Admin, Feedback, Events, and Admin RBAC', () => {
     expect(failRes.status).toBe(400);
     expect(failRes.body.error).toBe('A rejection reason is required.');
 
-    // Valid rejection succeeds
     const rejectRes = await request(app)
       .post(`/api/superadmin/hospitals/${pendingHospitalId}/reject`)
       .set('Authorization', `Bearer ${superAdminToken}`)
@@ -61,7 +60,6 @@ describe('Sprint 3 Super Admin, Feedback, Events, and Admin RBAC', () => {
     expect(hospitalDoc.verificationStatus).toBe('rejected');
     expect(hospitalDoc.rejectionReason).toBe('License document was expired.');
 
-    // Attempting login as rejected hospital fails with contract message
     const loginRes = await request(app)
       .post('/api/auth/login')
       .send({
@@ -74,7 +72,6 @@ describe('Sprint 3 Super Admin, Feedback, Events, and Admin RBAC', () => {
   });
 
   it('2. Public feedback submission by rejected hospital appears on Super Admin dashboard', async () => {
-    // 1. Hospital submits feedback via public endpoint
     const feedbackRes = await request(app)
       .post('/api/hospital/feedback')
       .send({
@@ -87,7 +84,6 @@ describe('Sprint 3 Super Admin, Feedback, Events, and Admin RBAC', () => {
     expect(feedbackRes.body.success).toBe(true);
     const feedbackId = feedbackRes.body.feedback._id;
 
-    // 2. Super Admin views feedback
     const listRes = await request(app)
       .get('/api/superadmin/feedbacks')
       .set('Authorization', `Bearer ${superAdminToken}`);
@@ -96,7 +92,6 @@ describe('Sprint 3 Super Admin, Feedback, Events, and Admin RBAC', () => {
     expect(listRes.body.feedbacks.length).toBe(1);
     expect(listRes.body.feedbacks[0].message).toContain('renewed our license');
 
-    // 3. Mark feedback reviewed
     const reviewRes = await request(app)
       .patch(`/api/superadmin/feedbacks/${feedbackId}/reviewed`)
       .set('Authorization', `Bearer ${superAdminToken}`);
@@ -122,10 +117,19 @@ describe('Sprint 3 Super Admin, Feedback, Events, and Admin RBAC', () => {
     expect(createRes.status).toBe(201);
     expect(createRes.body.success).toBe(true);
 
-    // Mock donor token
-    const donorToken = generateToken({ id: '507f1f77bcf86cd799439011', role: 'donor' });
+    // Create donor in DB for authMiddleware verification
+    const donor = await Donor.create({
+      name: 'Event Viewer Donor',
+      phone: '+251911887766',
+      fin: 'FIN-VIEWER-001',
+      gender: 'male',
+      bloodType: 'A+',
+      location: { type: 'Point', coordinates: [38.7613, 9.0108] },
+      phoneVerified: true,
+    });
 
-    // Donor views events feed
+    const donorToken = generateToken({ id: donor._id.toString(), role: 'donor' });
+
     const donorEventsRes = await request(app)
       .get('/api/donor/events')
       .set('Authorization', `Bearer ${donorToken}`);
@@ -137,7 +141,6 @@ describe('Sprint 3 Super Admin, Feedback, Events, and Admin RBAC', () => {
   });
 
   it('4. Admin Creation, Setup Password & Scoped Permission RBAC Enforcement', async () => {
-    // 1. Super Admin creates Admin with approve-only permission
     const createAdminRes = await request(app)
       .post('/api/superadmin/admins')
       .set('Authorization', `Bearer ${superAdminToken}`)
@@ -156,18 +159,15 @@ describe('Sprint 3 Super Admin, Feedback, Events, and Admin RBAC', () => {
     const adminDoc = await Admin.findOne({ email: 'approver@legash.et' });
     expect(adminDoc.setupToken).toBeDefined();
 
-    // 2. Admin sets password
     const setupRes = await request(app)
-      .post('/api/superadmin/setup-password')
+      .post('/api/auth/admin/setup')
       .send({
-        token: adminDoc.setupToken,
+        setupToken: adminDoc.setupToken,
         password: 'AdminPassword123!',
-        confirmPassword: 'AdminPassword123!',
       });
 
     expect(setupRes.status).toBe(200);
 
-    // 3. Admin logs in via shared login
     const loginRes = await request(app)
       .post('/api/auth/login')
       .send({
@@ -181,7 +181,6 @@ describe('Sprint 3 Super Admin, Feedback, Events, and Admin RBAC', () => {
 
     const adminToken = loginRes.body.token;
 
-    // 4. Admin CAN approve pending hospital
     const approveRes = await request(app)
       .post(`/api/superadmin/hospitals/${pendingHospitalId}/approve`)
       .set('Authorization', `Bearer ${adminToken}`);
@@ -189,7 +188,6 @@ describe('Sprint 3 Super Admin, Feedback, Events, and Admin RBAC', () => {
     expect(approveRes.status).toBe(200);
     expect(approveRes.body.message).toContain('approved');
 
-    // 5. Admin CANNOT post events (permission denied with 403)
     const eventPostFail = await request(app)
       .post('/api/superadmin/events')
       .set('Authorization', `Bearer ${adminToken}`)

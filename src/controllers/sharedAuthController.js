@@ -91,7 +91,7 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // 3. Check Scoped Admin Account
+    // 3. Check Admin Account
     const admin = await Admin.findOne({ email: cleanEmail, isDeleted: { $ne: true } });
     if (admin && admin.emailVerified && admin.passwordHash) {
       const isAdminMatch = await comparePassword(password, admin.passwordHash);
@@ -129,6 +129,54 @@ exports.login = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.adminSetup = async (req, res, next) => {
+  try {
+    const { setupToken, password, confirmPassword, token } = req.body;
+    const activeToken = setupToken || token;
+
+    if (!activeToken || !password) {
+      return res.status(400).json({
+        success: false,
+        error: 'setupToken and password are required.',
+      });
+    }
+
+    if (confirmPassword && password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password confirmation does not match.',
+      });
+    }
+
+    const admin = await Admin.findOne({
+      setupToken: activeToken.trim(),
+      setupTokenExpiresAt: { $gt: new Date() },
+    });
+
+    if (!admin) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid or expired setup token.',
+      });
+    }
+
+    admin.passwordHash = await hashPassword(password);
+    admin.setupToken = null;
+    admin.setupTokenExpiresAt = null;
+    admin.emailVerified = true;
+    await admin.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password configured successfully. You can now log in.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.setupAdminPassword = exports.adminSetup;
 
 exports.forgotPassword = async (req, res, next) => {
   try {

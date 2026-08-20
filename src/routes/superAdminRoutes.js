@@ -6,15 +6,17 @@ const verifyToken = require('../middleware/authMiddleware');
 const requireRole = require('../middleware/requireRole');
 const requirePermission = require('../middleware/requirePermission');
 
-// Public Admin Password Setup
-router.post('/setup-password', superAdminController.setupAdminPassword);
-
 // Protected Super Admin & Scoped Admin routes
 router.use(verifyToken);
 
-// Hospital Approvals
+// Pending Hospital Approvals & Rejections
 router.get(
   '/hospitals/pending',
+  requirePermission('canApproveHospitals'),
+  superAdminController.listPendingHospitals
+);
+router.get(
+  '/pending-hospitals',
   requirePermission('canApproveHospitals'),
   superAdminController.listPendingHospitals
 );
@@ -29,7 +31,7 @@ router.post(
   superAdminController.rejectHospital
 );
 
-// Feedbacks Management
+// Feedbacks Management (Super Admin only)
 router.get('/feedbacks', requireRole('superadmin'), superAdminController.listFeedbacks);
 router.patch('/feedbacks/:id/reviewed', requireRole('superadmin'), superAdminController.markFeedbackReviewed);
 
@@ -37,7 +39,7 @@ router.patch('/feedbacks/:id/reviewed', requireRole('superadmin'), superAdminCon
 router.post('/events', requirePermission('canPostEvents'), superAdminController.createEvent);
 router.get('/events', requirePermission('canPostEvents'), superAdminController.listAdminEvents);
 
-// Scoped Admin Management (Super Admin Exclusive)
+// Scoped Admin Management (Super Admin only)
 router.post('/admins', requireRole('superadmin'), superAdminController.createAdmin);
 router.get('/admins', requireRole('superadmin'), superAdminController.listAdmins);
 

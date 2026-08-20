@@ -1,5 +1,11 @@
+// Backend/src/services/smsService.js
 const Donor = require('../models/Donor');
 const generateResetCode = require('../utils/generateResetCode');
+
+const isDevOrTest =
+  !process.env.SMS_GATEWAY_BASE_URL ||
+  !process.env.SMS_GATEWAY_API_KEY ||
+  process.env.NODE_ENV === 'test';
 
 const OTP_MESSAGE = (code) =>
   `Your Legash OTP is ${code}. It expires in 15 minutes.`;
@@ -12,6 +18,11 @@ async function sendOtp(phone) {
   donor.resetCode = code;
   donor.resetCodeExpiresAt = expiresAt;
   await donor.save();
+
+  if (isDevOrTest) {
+    console.log(`\n📱 [SMS MOCK] OTP for ${phone}: ${code}\n`);
+    return;
+  }
 
   const response = await fetch(`${process.env.SMS_GATEWAY_BASE_URL}/api/v1/sms/send`, {
     method: 'POST',
@@ -41,7 +52,12 @@ async function verifyOtp(phone, code) {
   return true;
 }
 
-async function sendBloodAlertSms(phone, { hospitalName, bloodType, _quantityNeeded }) {
+async function sendBloodAlertSms(phone, { hospitalName, bloodType }) {
+  if (isDevOrTest) {
+    console.log(`\n📱 [SMS MOCK] Blood Alert for ${phone}: ${hospitalName} needs ${bloodType} blood.\n`);
+    return;
+  }
+
   const message = `Legash: ${hospitalName} needs ${bloodType} blood. Open the app to respond.`;
   const response = await fetch(`${process.env.SMS_GATEWAY_BASE_URL}/api/v1/sms/send`, {
     method: 'POST',

@@ -1,0 +1,1547 @@
+{
+  "info": {
+    "_postman_id": "f5a7b8e1-9d2c-4c6e-8b1a-3e5f7a9d0c2b",
+    "name": "Legash Smart Blood Network - Sprint 3 Enterprise QA Suite",
+    "description": "Production QA and API Contract Test Suite for Legash Sprint 3 covering Hospital Lifecycle, Donor PIN Authentication, Emergency Logistics, Compatible Donor Matching, Scoped Admin RBAC, and Events/Feedback.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" },
+    { "key": "hospitalToken", "value": "", "type": "string" },
+    { "key": "donorToken", "value": "", "type": "string" },
+    { "key": "superAdminToken", "value": "", "type": "string" },
+    { "key": "adminToken", "value": "", "type": "string" },
+    { "key": "hospitalId", "value": "", "type": "string" },
+    { "key": "hospitalEmail", "value": "stpaul.qa@legash.edu.et", "type": "string" },
+    { "key": "hospitalPassword", "value": "StrongHospPass123!", "type": "string" },
+    { "key": "donorPhone", "value": "+251911445566", "type": "string" },
+    { "key": "donorFin", "value": "ETH-9921-8834-0012", "type": "string" },
+    { "key": "donorPin", "value": "1234", "type": "string" },
+    { "key": "superAdminEmail", "value": "admin@legash.org", "type": "string" },
+    { "key": "superAdminPassword", "value": "SuperAdminSecurePass123!", "type": "string" },
+    { "key": "adminEmail", "value": "approver.admin@legash.org", "type": "string" },
+    { "key": "adminPassword", "value": "AdminPassSecure123!", "type": "string" },
+    { "key": "setupToken", "value": "", "type": "string" },
+    { "key": "requestId", "value": "", "type": "string" },
+    { "key": "notificationId", "value": "", "type": "string" },
+    { "key": "feedbackId", "value": "", "type": "string" },
+    { "key": "bloodType", "value": "A+", "type": "string" },
+    { "key": "verificationOtp", "value": "482910", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "1. Hospital Auth & Profile",
+      "item": [
+        {
+          "name": "1. Register Hospital",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Hospital Register returns 201 Created', function() {",
+                  "    pm.expect(pm.response.code).to.equal(201);",
+                  "    pm.expect(res.success).to.be.true;",
+                  "});",
+                  "if (res.hospitalId) {",
+                  "    pm.collectionVariables.set('hospitalId', res.hospitalId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hospitalName\": \"St. Paul Millennium Medical Center\",\n  \"email\": \"{{hospitalEmail}}\",\n  \"password\": \"{{hospitalPassword}}\",\n  \"phone\": \"+251911332211\",\n  \"licenseNumber\": \"HOSP-LIC-ADDIS-2026\",\n  \"location\": {\n    \"lat\": 9.0305,\n    \"lng\": 38.7402,\n    \"address\": \"Gulele Sub-City, Swaziland St, Addis Ababa\"\n  },\n  \"agreedToTerms\": true\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/hospital/register", "host": ["{{baseUrl}}"], "path": ["api", "hospital", "register"] }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Resend Email Code (Cooldown Gate)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Resend Email code returns 200 or 429 cooldown', function() {",
+                  "    pm.expect([200, 429]).to.include(pm.response.code);",
+                  "    if (pm.response.code === 200) {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{hospitalEmail}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/hospital/resend-email-code", "host": ["{{baseUrl}}"], "path": ["api", "hospital", "resend-email-code"] }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Verify Hospital Email (Leaves Status Pending)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Verify Email returns 200 OK when OTP is correct, or 400 if invalid', function() {",
+                  "    pm.expect([200, 400]).to.include(pm.response.code);",
+                  "    if (pm.response.code === 200) {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{hospitalEmail}}\",\n  \"code\": \"{{verificationOtp}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/hospital/verify-email", "host": ["{{baseUrl}}"], "path": ["api", "hospital", "verify-email"] }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Login Hospital (Blocked if Unapproved)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Hospital Approved Login returns 200 with JWT', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.role).to.equal('hospital');",
+                  "        pm.expect(res.token).to.be.a('string');",
+                  "    });",
+                  "    pm.collectionVariables.set('hospitalToken', res.token);",
+                  "} else {",
+                  "    pm.test('Pending Approval or unverified returns 401 with appropriate error', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "        pm.expect(res.error || res.message).to.exist;",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{hospitalEmail}}\",\n  \"password\": \"{{hospitalPassword}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Hospital Forgot Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Forgot password returns 200 OK', function() {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(res.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{hospitalEmail}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/forgot-password", "host": ["{{baseUrl}}"], "path": ["api", "auth", "forgot-password"] }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Hospital Reset Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Reset password returns 200 OK with valid OTP, or 400 if invalid', function() {",
+                  "    pm.expect([200, 400]).to.include(pm.response.code);",
+                  "    if (pm.response.code === 200) {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{hospitalEmail}}\",\n  \"code\": \"{{verificationOtp}}\",\n  \"newPassword\": \"{{hospitalPassword}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/reset-password", "host": ["{{baseUrl}}"], "path": ["api", "auth", "reset-password"] }
+          },
+          "response": []
+        },
+        {
+          "name": "7. Get Hospital Dashboard",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Get Dashboard returns 200 with hospital profile & stock', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.hospital).to.have.property('hospitalName');",
+                  "        pm.expect(res.hospital.bloodStock).to.be.an('array');",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Dashboard returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{hospitalToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/hospital/dashboard", "host": ["{{baseUrl}}"], "path": ["api", "hospital", "dashboard"] }
+          },
+          "response": []
+        },
+        {
+          "name": "8. Get Hospital Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Get Profile returns 200 OK', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.profile.licenseNumber).to.be.defined;",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Profile returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{hospitalToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/hospital/profile", "host": ["{{baseUrl}}"], "path": ["api", "hospital", "profile"] }
+          },
+          "response": []
+        },
+        {
+          "name": "9. Update Hospital Profile (Editable Name & Phone)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Update Profile returns 200 OK', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.profile.phone).to.equal('+251911332299');",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Update Profile returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{hospitalToken}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hospitalName\": \"St. Paul Millennium Hospital Center\",\n  \"phone\": \"+251911332299\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/hospital/profile", "host": ["{{baseUrl}}"], "path": ["api", "hospital", "profile"] }
+          },
+          "response": []
+        },
+        {
+          "name": "10. Request Email Change",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Request Email change returns 200 OK', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Request Email change returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{hospitalToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newEmail\": \"stpaul.admin@legash.edu.et\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/hospital/profile/change-email/request", "host": ["{{baseUrl}}"], "path": ["api", "hospital", "profile", "change-email", "request"] }
+          },
+          "response": []
+        },
+        {
+          "name": "11. Confirm Email Change via OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Confirm Email change returns 200 OK', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Confirm Email change returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{hospitalToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{verificationOtp}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/hospital/profile/change-email/confirm", "host": ["{{baseUrl}}"], "path": ["api", "hospital", "profile", "change-email", "confirm"] }
+          },
+          "response": []
+        },
+        {
+          "name": "12. Change Password (Inside Profile)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Change password returns 200 OK', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Change password returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{hospitalToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{hospitalPassword}}\",\n  \"newPassword\": \"{{hospitalPassword}}\",\n  \"confirmPassword\": \"{{hospitalPassword}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/hospital/profile/change-password", "host": ["{{baseUrl}}"], "path": ["api", "hospital", "profile", "change-password"] }
+          },
+          "response": []
+        }
+      ],
+      "description": "Hospital registration, email verification, authentication, and profile management"
+    },
+    {
+      "name": "2. Donor PIN Auth & Profile",
+      "item": [
+        {
+          "name": "1. Register Donor (No Password)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Donor register returns 201 Created', function() {",
+                  "    pm.expect(pm.response.code).to.equal(201);",
+                  "    pm.expect(res.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Aster Abera\",\n  \"phone\": \"{{donorPhone}}\",\n  \"fin\": \"{{donorFin}}\",\n  \"gender\": \"female\",\n  \"bloodType\": \"A+\",\n  \"location\": {\n    \"lat\": 9.0108,\n    \"lng\": 38.7613\n  },\n  \"agreedToTerms\": true\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/donor/register", "host": ["{{baseUrl}}"], "path": ["api", "donor", "register"] }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Resend Donor OTP (60s cooldown)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Resend OTP returns 200 or 429 rate limit', function() {",
+                  "    pm.expect([200, 429]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{donorPhone}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/donor/resend-otp", "host": ["{{baseUrl}}"], "path": ["api", "donor", "resend-otp"] }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Verify Donor Phone OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Verify OTP returns 200 OK with valid code, or 400 if invalid', function() {",
+                  "    pm.expect([200, 400]).to.include(pm.response.code);",
+                  "    if (pm.response.code === 200) {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{donorPhone}}\",\n  \"code\": \"{{verificationOtp}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/donor/verify-otp", "host": ["{{baseUrl}}"], "path": ["api", "donor", "verify-otp"] }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Set 4-Digit PIN (Returns Device Session)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Set PIN returns 200 with JWT device token, or 400 if invalid', function() {",
+                  "    pm.expect([200, 400]).to.include(pm.response.code);",
+                  "    if (pm.response.code === 200) {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.token).to.be.a('string');",
+                  "        pm.collectionVariables.set('donorToken', res.token);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{donorPhone}}\",\n  \"pin\": \"{{donorPin}}\",\n  \"confirmPin\": \"{{donorPin}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/donor/set-pin", "host": ["{{baseUrl}}"], "path": ["api", "donor", "set-pin"] }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Unlock App With PIN (Device-Bound)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('PIN Unlock returns 200 with refreshed token', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.token).to.be.a('string');",
+                  "        pm.collectionVariables.set('donorToken', res.token);",
+                  "    });",
+                  "} else {",
+                  "    pm.test('PIN Unlock returns 401 if invalid PIN', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{donorToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"{{donorPin}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/donor/unlock", "host": ["{{baseUrl}}"], "path": ["api", "donor", "unlock"] }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Forgot PIN (SMS Trigger)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Forgot PIN returns 200 OK', function() {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(res.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{donorPhone}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/donor/forgot-pin", "host": ["{{baseUrl}}"], "path": ["api", "donor", "forgot-pin"] }
+          },
+          "response": []
+        },
+        {
+          "name": "7. Reset PIN with OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Reset PIN returns 200 OK with valid OTP, or 400 if invalid', function() {",
+                  "    pm.expect([200, 400]).to.include(pm.response.code);",
+                  "    if (pm.response.code === 200) {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.token).to.be.a('string');",
+                  "        pm.collectionVariables.set('donorToken', res.token);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{donorPhone}}\",\n  \"code\": \"{{verificationOtp}}\",\n  \"pin\": \"{{donorPin}}\",\n  \"confirmPin\": \"{{donorPin}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/donor/reset-pin", "host": ["{{baseUrl}}"], "path": ["api", "donor", "reset-pin"] }
+          },
+          "response": []
+        },
+        {
+          "name": "8. Get Donor Profile (Directly Visible)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Get Donor Profile returns 200 with all visible fields', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.profile.phone).to.equal(pm.collectionVariables.get('donorPhone'));",
+                  "        pm.expect(res.profile.fin).to.equal(pm.collectionVariables.get('donorFin'));",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Get Donor Profile returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{donorToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/donor/profile", "host": ["{{baseUrl}}"], "path": ["api", "donor", "profile"] }
+          },
+          "response": []
+        },
+        {
+          "name": "9. Update Donor Profile (Editable Fields Only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Update profile returns 200 with updated fields', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.profile.weightKg).to.equal(68);",
+                  "        pm.expect(res.profile.bloodType).to.equal('A+');",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Update profile returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{donorToken}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Aster Abera\",\n  \"dob\": \"1998-05-14\",\n  \"bloodType\": \"A+\",\n  \"weightKg\": 68,\n  \"heightCm\": 169,\n  \"healthNotes\": \"Regular donor, no active medical prescriptions.\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/donor/profile", "host": ["{{baseUrl}}"], "path": ["api", "donor", "profile"] }
+          },
+          "response": []
+        },
+        {
+          "name": "10. Change Donor PIN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Change PIN returns 200 OK', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Change PIN returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{donorToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPin\": \"{{donorPin}}\",\n  \"newPin\": \"{{donorPin}}\",\n  \"confirmPin\": \"{{donorPin}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/donor/profile/change-pin", "host": ["{{baseUrl}}"], "path": ["api", "donor", "profile", "change-pin"] }
+          },
+          "response": []
+        },
+        {
+          "name": "11. Get Nearby Blood Centers (Empty Feed Safe)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Get Blood Centers returns 200 with array', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.centers).to.be.an('array');",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Get Blood Centers returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{donorToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/donor/blood-centers", "host": ["{{baseUrl}}"], "path": ["api", "donor", "blood-centers"] }
+          },
+          "response": []
+        }
+      ],
+      "description": "Donor registration, phone verification, 4-digit PIN authentication, and donor profile management"
+    },
+    {
+      "name": "3. Blood Stock & Requests",
+      "item": [
+        {
+          "name": "1. Get All 8 Blood Stock Items",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Get Blood Stock returns 200 with 8 blood types', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.bloodStock.length).to.equal(8);",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Get Blood Stock returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{hospitalToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/hospital/blood-stock", "host": ["{{baseUrl}}"], "path": ["api", "hospital", "blood-stock"] }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Update Blood Stock (Increment Units)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Update Blood Stock returns 200 OK', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.bloodType).to.equal('A+');",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Update Blood Stock returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{hospitalToken}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"availableUnits\": 25\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/hospital/blood-stock/A+", "host": ["{{baseUrl}}"], "path": ["api", "hospital", "blood-stock", "A+"] }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Create Blood Request (Compatible Matching)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 201) {",
+                  "    pm.test('Create Blood Request returns 201 Created', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.requestId).to.be.defined;",
+                  "        pm.collectionVariables.set('requestId', res.requestId);",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Create Blood Request returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{hospitalToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bloodType\": \"A+\",\n  \"quantityNeeded\": 4,\n  \"isEmergency\": true,\n  \"description\": \"Emergency cardiovascular surgery trauma case\",\n  \"closesAt\": \"2026-08-25T18:00:00.000Z\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/hospital/blood-requests", "host": ["{{baseUrl}}"], "path": ["api", "hospital", "blood-requests"] }
+          },
+          "response": []
+        },
+        {
+          "name": "4. List Hospital Blood Requests (Urgency Filter)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('List Requests returns 200 with array', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.requests).to.be.an('array');",
+                  "    });",
+                  "} else {",
+                  "    pm.test('List Requests returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{hospitalToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/hospital/blood-requests?urgency=emergency", "host": ["{{baseUrl}}"], "path": ["api", "hospital", "blood-requests"], "query": [{ "key": "urgency", "value": "emergency" }] }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Get Request Responses (Accepted Donor Contacts)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Get Responses returns 200 OK', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.accepted).to.be.an('array');",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Get Responses returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{hospitalToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/hospital/blood-requests/{{requestId}}/responses", "host": ["{{baseUrl}}"], "path": ["api", "hospital", "blood-requests", "{{requestId}}", "responses"] }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Close Blood Request Manually",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Close Request returns 200 OK', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Close Request returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{hospitalToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/hospital/blood-requests/{{requestId}}/close", "host": ["{{baseUrl}}"], "path": ["api", "hospital", "blood-requests", "{{requestId}}", "close"] }
+          },
+          "response": []
+        }
+      ],
+      "description": "Hospital blood stock management and blood request creation/fulfillment"
+    },
+    {
+      "name": "4. Donor Notifications & Responses",
+      "item": [
+        {
+          "name": "1. Get Donor Notifications Feed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Get Notifications returns 200 with feed', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.notifications).to.be.an('array');",
+                  "        if (res.notifications && res.notifications.length > 0) {",
+                  "            pm.collectionVariables.set('notificationId', res.notifications[0].id);",
+                  "        }",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Get Notifications returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{donorToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/donor/notifications?status=pending", "host": ["{{baseUrl}}"], "path": ["api", "donor", "notifications"], "query": [{ "key": "status", "value": "pending" }] }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Respond to Blood Request (Accept with NextSteps)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Respond to notification returns 200 with nextSteps location info', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        if (res.nextSteps) {",
+                  "            pm.expect(res.nextSteps).to.have.property('hospitalName');",
+                  "            pm.expect(res.nextSteps).to.have.property('hospitalPhone');",
+                  "            pm.expect(res.nextSteps).to.have.property('hospitalLocation');",
+                  "        }",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Respond to notification returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{donorToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"accepted\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/donor/notifications/{{notificationId}}/respond", "host": ["{{baseUrl}}"], "path": ["api", "donor", "notifications", "{{notificationId}}", "respond"] }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Register Push Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Register Push Token returns 200 OK', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Register Push Token returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{donorToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pushToken\": \"fcm_device_token_sample_abc123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/donor/push-token", "host": ["{{baseUrl}}"], "path": ["api", "donor", "push-token"] }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Get Public Events Feed (Donor Dashboard)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Get Donor Events returns 200 with open events', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.events).to.be.an('array');",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Get Donor Events returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{donorToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/donor/events", "host": ["{{baseUrl}}"], "path": ["api", "donor", "events"] }
+          },
+          "response": []
+        }
+      ],
+      "description": "Donor notification feed, blood request responses, push token registration, and public events"
+    },
+    {
+      "name": "5. Super Admin & Admin Operations",
+      "item": [
+        {
+          "name": "1. Super Admin Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Super Admin login returns 200 with superadmin role', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.role).to.equal('superadmin');",
+                  "        pm.collectionVariables.set('superAdminToken', res.token);",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Super Admin login returns 401 if invalid credentials', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{superAdminEmail}}\",\n  \"password\": \"{{superAdminPassword}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          },
+          "response": []
+        },
+        {
+          "name": "2. List Pending Hospitals",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('List Pending Hospitals returns 200 OK', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.hospitals).to.be.an('array');",
+                  "        if (res.hospitals && res.hospitals.length > 0) {",
+                  "            pm.collectionVariables.set('hospitalId', res.hospitals[0].id);",
+                  "        }",
+                  "    });",
+                  "} else {",
+                  "    pm.test('List Pending Hospitals returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{superAdminToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/superadmin/hospitals/pending", "host": ["{{baseUrl}}"], "path": ["api", "superadmin", "hospitals", "pending"] }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Reject Hospital (Requires Reason)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Reject Hospital returns 200 OK', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Reject Hospital returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{superAdminToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Submitted license documentation was expired. Please re-upload current registry certificate.\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/superadmin/hospitals/{{hospitalId}}/reject", "host": ["{{baseUrl}}"], "path": ["api", "superadmin", "hospitals", "{{hospitalId}}", "reject"] }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Submit Rejected Hospital Feedback (Public)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Submit Feedback returns 201 Created', function() {",
+                  "    pm.expect(pm.response.code).to.equal(201);",
+                  "    pm.expect(res.success).to.be.true;",
+                  "});",
+                  "if (res.feedback) {",
+                  "    pm.collectionVariables.set('feedbackId', res.feedback._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{hospitalEmail}}\",\n  \"hospitalName\": \"St. Paul Millennium Hospital\",\n  \"message\": \"We have renewed our medical license with the Ministry of Health. Please re-verify our registration.\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/hospital/feedback", "host": ["{{baseUrl}}"], "path": ["api", "hospital", "feedback"] }
+          },
+          "response": []
+        },
+        {
+          "name": "5. List Super Admin Feedbacks",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('List Feedbacks returns 200 with feedbacks array', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.feedbacks).to.be.an('array');",
+                  "    });",
+                  "} else {",
+                  "    pm.test('List Feedbacks returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{superAdminToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/superadmin/feedbacks", "host": ["{{baseUrl}}"], "path": ["api", "superadmin", "feedbacks"] }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Mark Feedback Reviewed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Mark reviewed returns 200 OK', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.feedback.status).to.equal('reviewed');",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Mark reviewed returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{superAdminToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/superadmin/feedbacks/{{feedbackId}}/reviewed", "host": ["{{baseUrl}}"], "path": ["api", "superadmin", "feedbacks", "{{feedbackId}}", "reviewed"] }
+          },
+          "response": []
+        },
+        {
+          "name": "7. Approve Hospital",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Approve Hospital returns 200 OK', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Approve Hospital returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{superAdminToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/superadmin/hospitals/{{hospitalId}}/approve", "host": ["{{baseUrl}}"], "path": ["api", "superadmin", "hospitals", "{{hospitalId}}", "approve"] }
+          },
+          "response": []
+        },
+        {
+          "name": "8. Create Event Post (Image/Video)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 201) {",
+                  "    pm.test('Create Event returns 201 Created', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.event.description).to.be.defined;",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Create Event returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{superAdminToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mediaUrl\": \"https://images.unsplash.com/photo-1615461066841-6116e61058f4\",\n  \"mediaType\": \"image\",\n  \"description\": \"Addis Ababa City-Wide Blood Donation Day. Join us at Meskel Square.\",\n  \"applyLink\": \"https://legash.org/events/meskel-drive-2026\",\n  \"closesAt\": \"2026-08-30T17:00:00.000Z\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/superadmin/events", "host": ["{{baseUrl}}"], "path": ["api", "superadmin", "events"] }
+          },
+          "response": []
+        },
+        {
+          "name": "9. Create Scoped Admin (Approver)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 201) {",
+                  "    pm.test('Create Admin returns 201 Created', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.admin.permissions.canApproveHospitals).to.be.true;",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Create Admin returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{superAdminToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"EBTBS Compliance Officer\",\n  \"email\": \"{{adminEmail}}\",\n  \"permissions\": {\n    \"canApproveHospitals\": true,\n    \"canPostEvents\": false\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/superadmin/admins", "host": ["{{baseUrl}}"], "path": ["api", "superadmin", "admins"] }
+          },
+          "response": []
+        },
+        {
+          "name": "10. List Admins",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('List Admins returns 200 with admins array', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.admins).to.be.an('array');",
+                  "    });",
+                  "} else {",
+                  "    pm.test('List Admins returns 401 if not authenticated', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{superAdminToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/superadmin/admins", "host": ["{{baseUrl}}"], "path": ["api", "superadmin", "admins"] }
+          },
+          "response": []
+        },
+        {
+          "name": "11. Admin Password Setup",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Admin setup returns 200 or 400 for invalid token', function() {",
+                  "    pm.expect([200, 400]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"setupToken\": \"{{setupToken}}\",\n  \"password\": \"{{adminPassword}}\",\n  \"confirmPassword\": \"{{adminPassword}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/admin/setup", "host": ["{{baseUrl}}"], "path": ["api", "auth", "admin", "setup"] }
+          },
+          "response": []
+        },
+        {
+          "name": "12. Admin Shared Login (Returns Scoped Permissions)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Admin Login returns 200 with admin role and scoped permissions', function() {",
+                  "        pm.expect(res.success).to.be.true;",
+                  "        pm.expect(res.role).to.equal('admin');",
+                  "        pm.expect(res.permissions).to.be.an('object');",
+                  "        pm.collectionVariables.set('adminToken', res.token);",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Admin Login returns 401 if not setup', function() {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          },
+          "response": []
+        }
+      ],
+      "description": "Super Admin operations: hospital approval/rejection, feedback management, events, and scoped admin RBAC"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "console.log(`🚀 ${pm.info.requestName} - ${pm.request.method} ${pm.request.url.toString()}`);"
+        ],
+        "type": "text/javascript"
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "exec": [
+          "if (pm.response.code !== 204 && pm.response.text()) {",
+          "  try {",
+          "    const jsonData = pm.response.json();",
+          "    if (pm.response.code >= 200 && pm.response.code < 300) {",
+          "      pm.test('Response has expected success field', function() {",
+          "        if (jsonData && typeof jsonData === 'object') {",
+          "          pm.expect(jsonData).to.have.property('success');",
+          "        }",
+          "      });",
+          "    }",
+          "  } catch (e) {}",
+          "}"
+        ],
+        "type": "text/javascript"
+      }
+    }
+  ]
+}
