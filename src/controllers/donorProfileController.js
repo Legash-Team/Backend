@@ -2,8 +2,8 @@
 const Donor = require('../models/Donor');
 const { hashPassword, comparePassword } = require('../utils/hashPassword');
 const { sendOtp, verifyOtp } = require('../services/smsService');
-const generateToken = require('../utils/generateToken');
 const { VALID_BLOOD_TYPES } = require('../utils/bloodCompatibility');
+const generateResetCode = require('../utils/generateResetCode');
 
 exports.getProfile = async (req, res, next) => {
   try {
@@ -33,9 +33,16 @@ exports.getProfile = async (req, res, next) => {
 
 exports.updateProfile = async (req, res, next) => {
   try {
-    const { name, dob, bloodType, weightKg, heightCm, healthNotes } = req.body;
-    const donor = await Donor.findById(req.user.id);
+    const { name, dob, bloodType, weightKg, heightCm, healthNotes, fin, gender } = req.body;
 
+    if (fin !== undefined || gender !== undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'FIN and gender are immutable and cannot be updated.',
+      });
+    }
+
+    const donor = await Donor.findById(req.user.id);
     if (!donor || donor.isDeleted) {
       return res.status(404).json({ success: false, error: 'Donor not found.' });
     }
@@ -81,13 +88,18 @@ exports.requestPhoneChange = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'New phone must be in +251 format.' });
     }
 
-    const existing = await Donor.findOne({ phone: newPhone });
+    const cleanNewPhone = newPhone.trim();
+    const existing = await Donor.findOne({ phone: cleanNewPhone });
     if (existing) {
       return res.status(409).json({ success: false, error: 'Phone number already registered.' });
     }
 
     const donor = await Donor.findById(req.user.id);
-    donor.pendingPhone = newPhone;
+    const { code, expiresAt } = generateResetCode();
+
+    donor.pendingPhone = cleanNewPhone;
+    donor.pendingPhoneOtp = code;
+    donor.pendingPhoneOtpExpiresAt = expiresAt;
     await donor.save();
 
     await sendOtp(donor.phone);
@@ -106,17 +118,22 @@ exports.confirmPhoneChange = async (req, res, next) => {
     const { code } = req.body;
     const donor = await Donor.findById(req.user.id);
 
-    if (!donor || !donor.pendingPhone) {
+    if (!donor || !donor.pendingPhone || !donor.pendingPhoneOtp) {
       return res.status(400).json({ success: false, error: 'No phone change request pending.' });
     }
 
-    const isValid = await verifyOtp(donor.phone, code);
-    if (!isValid) {
+    if (
+      donor.pendingPhoneOtp !== code?.trim() ||
+      !donor.pendingPhoneOtpExpiresAt ||
+      donor.pendingPhoneOtpExpiresAt < new Date()
+    ) {
       return res.status(400).json({ success: false, error: 'Invalid or expired code.' });
     }
 
     donor.phone = donor.pendingPhone;
     donor.pendingPhone = null;
+    donor.pendingPhoneOtp = null;
+    donor.pendingPhoneOtpExpiresAt = null;
     await donor.save();
 
     return res.status(200).json({

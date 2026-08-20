@@ -5,12 +5,18 @@ const Donor = require('../models/Donor');
 exports.list = async (req, res, next) => {
   try {
     const filter = { donor: req.user.id };
+
     if (req.query.status) {
-      filter.status = req.query.status;
+      // Ongoing maps to pending internally
+      if (req.query.status === 'ongoing' || req.query.status === 'pending') {
+        filter.status = 'pending';
+      } else if (req.query.status === 'accepted' || req.query.status === 'denied') {
+        filter.status = req.query.status;
+      }
     }
 
     const responses = await BloodRequestResponse.find(filter)
-      .sort({ notifiedAt: -1 })
+      .sort({ notifiedAt: -1, createdAt: -1 })
       .populate({
         path: 'bloodRequest',
         populate: {

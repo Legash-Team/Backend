@@ -5,6 +5,8 @@ const { sendOtp, verifyOtp } = require('../services/smsService');
 const generateToken = require('../utils/generateToken');
 const generateResetCode = require('../utils/generateResetCode');
 
+const RESEND_COOLDOWN_SECONDS = 60;
+
 exports.registerDonor = async (req, res, next) => {
   try {
     const { name, phone, fin, gender, bloodType, location, agreedToTerms } = req.body;
@@ -38,6 +40,7 @@ exports.registerDonor = async (req, res, next) => {
       agreedToTerms: agreedToTerms !== undefined ? agreedToTerms : true,
       phoneVerified: false,
       pinHash: null,
+      lastOtpSentAt: new Date(),
     });
 
     try {
@@ -81,7 +84,25 @@ exports.resendDonorOtp = async (req, res, next) => {
     const donor = await Donor.findOne({ phone: phone.trim() });
 
     if (donor && !donor.phoneVerified) {
-      await sendOtp(donor.phone);
+      const now = new Date();
+      if (
+        donor.lastOtpSentAt &&
+        (now.getTime() - new Date(donor.lastOtpSentAt).getTime()) / 1000 < RESEND_COOLDOWN_SECONDS
+      ) {
+        return res.status(429).json({
+          success: false,
+          error: `Please wait ${RESEND_COOLDOWN_SECONDS} seconds before requesting a new OTP.`,
+        });
+      }
+
+      donor.lastOtpSentAt = now;
+      await donor.save();
+
+      try {
+        await sendOtp(donor.phone);
+      } catch (err) {
+        console.warn('⚠️ OTP SMS dispatch error:', err.message);
+      }
     }
 
     return res.status(200).json({
