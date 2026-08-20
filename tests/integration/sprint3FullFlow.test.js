@@ -1,5 +1,4 @@
 const request = require('supertest');
-const mongoose = require('mongoose');
 const express = require('express');
 
 const hospitalAuthRoutes = require('../../src/routes/hospitalAuthRoutes');
@@ -40,7 +39,6 @@ describe('Sprint 3: Complete Platform Flow & Lifecycle Integration Tests', () =>
     await Feedback.deleteMany({});
     await EventPost.deleteMany({});
 
-    // Seed test SuperAdmin
     superAdmin = await SuperAdmin.create({
       name: 'System Admin',
       email: 'admin@legash.org',
@@ -50,9 +48,7 @@ describe('Sprint 3: Complete Platform Flow & Lifecycle Integration Tests', () =>
     superAdminToken = generateToken({ id: superAdmin._id, role: 'superadmin' });
   });
 
-  // =========================================================================
   // 1. HOSPITAL ONBOARDING, DUPLICATES & APPROVAL LIFECYCLE
-  // =========================================================================
   describe('1. Hospital Registration, Duplicate Checks & Verification Lifecycle', () => {
     const validHospitalData = {
       name: 'St. Paul Millennium Hospital',
@@ -163,9 +159,7 @@ describe('Sprint 3: Complete Platform Flow & Lifecycle Integration Tests', () =>
     });
   });
 
-  // =========================================================================
   // 2. SUPER ADMIN APPROVAL, REJECTION & HOSPITAL LOGIN WORKFLOW
-  // =========================================================================
   describe('2. Super Admin Approval, Rejection with Reason & Login', () => {
     let hospitalA, hospitalB;
 
@@ -207,7 +201,6 @@ describe('Sprint 3: Complete Platform Flow & Lifecycle Integration Tests', () =>
     });
 
     it('2.2 Should approve Hospital Alpha and allow login with JWT', async () => {
-      // 1. Approve
       const approveRes = await request(app)
         .post(`/api/admin/hospitals/${hospitalA._id}/approve`)
         .set('Authorization', `Bearer ${superAdminToken}`);
@@ -218,7 +211,6 @@ describe('Sprint 3: Complete Platform Flow & Lifecycle Integration Tests', () =>
       const dbHospital = await Hospital.findById(hospitalA._id);
       expect(dbHospital.verificationStatus).toBe('approved');
 
-      // 2. Login
       const loginRes = await request(app)
         .post('/api/auth/login')
         .send({
@@ -236,7 +228,6 @@ describe('Sprint 3: Complete Platform Flow & Lifecycle Integration Tests', () =>
     it('2.3 Should reject Hospital Beta with custom reason and prevent login', async () => {
       const rejectReason = 'Medical facility license expired on June 2026.';
 
-      // 1. Reject with reason
       const rejectRes = await request(app)
         .post(`/api/admin/hospitals/${hospitalB._id}/reject`)
         .set('Authorization', `Bearer ${superAdminToken}`)
@@ -249,7 +240,6 @@ describe('Sprint 3: Complete Platform Flow & Lifecycle Integration Tests', () =>
       expect(dbHospital.verificationStatus).toBe('rejected');
       expect(dbHospital.rejectionReason).toBe(rejectReason);
 
-      // 2. Attempt login (Should fail)
       const loginRes = await request(app)
         .post('/api/auth/login')
         .send({
@@ -263,12 +253,9 @@ describe('Sprint 3: Complete Platform Flow & Lifecycle Integration Tests', () =>
     });
   });
 
-  // =========================================================================
   // 3. HOSPITAL APPEAL & FEEDBACK INGESTION
-  // =========================================================================
   describe('3. Hospital Rejection Feedback & Appeal Flow', () => {
     it('3.1 Should submit public appeal feedback and allow SuperAdmin to view it', async () => {
-      // 1. Submit public appeal
       const submitRes = await request(app)
         .post('/api/feedback/submit')
         .send({
@@ -282,7 +269,6 @@ describe('Sprint 3: Complete Platform Flow & Lifecycle Integration Tests', () =>
       expect(submitRes.body.success).toBe(true);
       expect(submitRes.body.data.hospitalEmail).toBe('beta@hospital.org');
 
-      // 2. SuperAdmin fetches feedback list
       const listRes = await request(app)
         .get('/api/admin/feedbacks')
         .set('Authorization', `Bearer ${superAdminToken}`);
@@ -295,14 +281,11 @@ describe('Sprint 3: Complete Platform Flow & Lifecycle Integration Tests', () =>
     });
   });
 
-  // =========================================================================
   // 4. EVENTS POSTING & DYNAMIC PUBLIC FEED
-  // =========================================================================
   describe('4. Events Management & Dynamic Feed', () => {
     it('4.1 Should create an event and compute dynamic isOpen status in public feed', async () => {
       const futureDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
 
-      // 1. Create Event
       const createRes = await request(app)
         .post('/api/admin/events')
         .set('Authorization', `Bearer ${superAdminToken}`)
@@ -320,7 +303,6 @@ describe('Sprint 3: Complete Platform Flow & Lifecycle Integration Tests', () =>
 
       const eventId = createRes.body.data._id;
 
-      // 2. Public Event Feed (Dynamic isOpen === true)
       const feedRes = await request(app).get('/api/events');
 
       expect(feedRes.status).toBe(200);
@@ -329,7 +311,6 @@ describe('Sprint 3: Complete Platform Flow & Lifecycle Integration Tests', () =>
       expect(feedRes.body.data[0].title).toBe('AAU Blood Drive 2026');
       expect(feedRes.body.data[0].isOpen).toBe(true);
 
-      // 3. Admin Event List
       const adminListRes = await request(app)
         .get('/api/admin/events')
         .set('Authorization', `Bearer ${superAdminToken}`);
@@ -337,7 +318,6 @@ describe('Sprint 3: Complete Platform Flow & Lifecycle Integration Tests', () =>
       expect(adminListRes.status).toBe(200);
       expect(adminListRes.body.data.length).toBe(1);
 
-      // 4. Delete Event
       const delRes = await request(app)
         .delete(`/api/admin/events/${eventId}`)
         .set('Authorization', `Bearer ${superAdminToken}`);
@@ -350,12 +330,9 @@ describe('Sprint 3: Complete Platform Flow & Lifecycle Integration Tests', () =>
     });
   });
 
-  // =========================================================================
   // 5. SUB-ADMIN RBAC CREATION, INVITATION & LOGIN
-  // =========================================================================
   describe('5. Sub-Admin RBAC Lifecycle', () => {
     it('5.1 Should invite sub-admin, list them, activate account, and log in with assigned role', async () => {
-      // 1. SuperAdmin invites Sub-Admin
       const inviteRes = await request(app)
         .post('/api/admin/create-subadmin')
         .set('Authorization', `Bearer ${superAdminToken}`)
@@ -371,7 +348,6 @@ describe('Sprint 3: Complete Platform Flow & Lifecycle Integration Tests', () =>
 
       const invitationToken = inviteRes.body.invitationToken;
 
-      // 2. SuperAdmin checks Sub-Admin list
       const listRes = await request(app)
         .get('/api/admin/sub-admins')
         .set('Authorization', `Bearer ${superAdminToken}`);
@@ -382,7 +358,6 @@ describe('Sprint 3: Complete Platform Flow & Lifecycle Integration Tests', () =>
       expect(listRes.body.subAdmins[0].email).toBe('abebe@legash.org');
       expect(listRes.body.subAdmins[0].permissions).toContain('can_approve_hospitals');
 
-      // 3. Sub-Admin sets password via invitation token
       const acceptRes = await request(app)
         .post('/api/admin/accept-invitation')
         .send({
@@ -393,7 +368,6 @@ describe('Sprint 3: Complete Platform Flow & Lifecycle Integration Tests', () =>
       expect(acceptRes.status).toBe(200);
       expect(acceptRes.body.success).toBe(true);
 
-      // 4. Sub-Admin logs in through shared login
       const loginRes = await request(app)
         .post('/api/auth/login')
         .send({

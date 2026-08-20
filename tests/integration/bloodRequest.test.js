@@ -1,5 +1,4 @@
 const request = require('supertest');
-const mongoose = require('mongoose');
 const express = require('express');
 const bloodRequestRoutes = require('../../src/routes/bloodRequestRoutes');
 const BloodRequest = require('../../src/models/BloodRequest');
@@ -27,7 +26,7 @@ jest.mock('../../src/services/smsService', () => ({
 }));
 
 describe('Blood Request Lifecycle Integration', () => {
-  let hospital, donor1, donor2, hospitalToken, donor1Token;
+  let hospital, donor1, _donor2, hospitalToken, donor1Token;
 
   beforeEach(async () => {
     await Hospital.deleteMany({});
@@ -35,7 +34,6 @@ describe('Blood Request Lifecycle Integration', () => {
     await BloodRequest.deleteMany({});
     await BloodRequestResponse.deleteMany({});
     
-    // Ensure 2dsphere index is built before running $near queries
     await Donor.createIndexes();
 
     hospital = await Hospital.create({
@@ -52,7 +50,6 @@ describe('Blood Request Lifecycle Integration', () => {
 
     hospitalToken = generateToken({ id: hospital._id, role: 'hospital' });
 
-    // Donor 1: Nearby, matching
     donor1 = await Donor.create({
       name: 'John Doe',
       phone: '+251900000002',
@@ -66,8 +63,7 @@ describe('Blood Request Lifecycle Integration', () => {
     });
     donor1Token = generateToken({ id: donor1._id, role: 'donor' });
 
-    // Donor 2: Not matching type
-    donor2 = await Donor.create({
+    _donor2 = await Donor.create({
       name: 'Jane Doe',
       phone: '+251900000003',
       fin: 'FIN124',
@@ -81,7 +77,6 @@ describe('Blood Request Lifecycle Integration', () => {
   });
 
   it('runs the full blood request lifecycle: create -> list -> respond -> close', async () => {
-    // 1. Create a blood request and notifies matched donors
     let res = await request(app)
       .post('/api/hospital/blood-requests')
       .set('Authorization', `Bearer ${hospitalToken}`)
@@ -106,7 +101,6 @@ describe('Blood Request Lifecycle Integration', () => {
     
     const responseId = responses[0]._id;
 
-    // 2. Lists requests with correct counts
     res = await request(app)
       .get('/api/hospital/blood-requests')
       .set('Authorization', `Bearer ${hospitalToken}`);
@@ -116,7 +110,6 @@ describe('Blood Request Lifecycle Integration', () => {
     expect(res.body.requests[0].pendingCount).toBe(1);
     expect(res.body.requests[0].acceptedCount).toBe(0);
 
-    // 3. Donor responds via direct model update (testing hospital getResponses side)
     await BloodRequestResponse.findByIdAndUpdate(responseId, {
       status: 'accepted',
       respondedAt: new Date()
@@ -133,7 +126,6 @@ describe('Blood Request Lifecycle Integration', () => {
     expect(res.body.accepted[0].name).toBe('John Doe');
     expect(res.body.accepted[0].phone).toBe('+251900000002');
 
-    // 4. Closes a request
     res = await request(app)
       .patch(`/api/hospital/blood-requests/${requestId}/close`)
       .set('Authorization', `Bearer ${hospitalToken}`);
@@ -145,7 +137,6 @@ describe('Blood Request Lifecycle Integration', () => {
     expect(closedRequest.status).toBe('closed');
     expect(closedRequest.closedReason).toBe('manual');
 
-    // 5. Fails to double close
     res = await request(app)
       .patch(`/api/hospital/blood-requests/${requestId}/close`)
       .set('Authorization', `Bearer ${hospitalToken}`);
@@ -156,26 +147,22 @@ describe('Blood Request Lifecycle Integration', () => {
 
   describe('Validation and Authorization (400/403)', () => {
     it('returns 403 Forbidden when a Donor tries to access hospital routes', async () => {
-      // POST /
       let res = await request(app)
         .post('/api/hospital/blood-requests')
         .set('Authorization', `Bearer ${donor1Token}`)
         .send({ bloodType: 'O+', quantityNeeded: 2 });
       expect(res.status).toBe(403);
 
-      // GET /
       res = await request(app)
         .get('/api/hospital/blood-requests')
         .set('Authorization', `Bearer ${donor1Token}`);
       expect(res.status).toBe(403);
 
-      // GET /:id/responses
       res = await request(app)
         .get('/api/hospital/blood-requests/some-fake-id/responses')
         .set('Authorization', `Bearer ${donor1Token}`);
       expect(res.status).toBe(403);
 
-      // PATCH /:id/close
       res = await request(app)
         .patch('/api/hospital/blood-requests/some-fake-id/close')
         .set('Authorization', `Bearer ${donor1Token}`);
@@ -183,7 +170,6 @@ describe('Blood Request Lifecycle Integration', () => {
     });
 
     it('returns 400 when invalid bloodType or quantityNeeded is provided', async () => {
-      // Invalid bloodType
       let res = await request(app)
         .post('/api/hospital/blood-requests')
         .set('Authorization', `Bearer ${hospitalToken}`)
@@ -191,7 +177,6 @@ describe('Blood Request Lifecycle Integration', () => {
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/Invalid blood type/);
 
-      // Negative quantityNeeded
       res = await request(app)
         .post('/api/hospital/blood-requests')
         .set('Authorization', `Bearer ${hospitalToken}`)
@@ -199,7 +184,6 @@ describe('Blood Request Lifecycle Integration', () => {
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/quantityNeeded must be a positive integer/);
       
-      // Zero quantityNeeded
       res = await request(app)
         .post('/api/hospital/blood-requests')
         .set('Authorization', `Bearer ${hospitalToken}`)

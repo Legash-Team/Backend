@@ -14,14 +14,18 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
 } else {
   console.warn('FIREBASE_SERVICE_ACCOUNT_JSON is not set. Push notifications will be disabled.');
 }
+
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./src/config/db');
 const errorHandler = require('./src/middleware/errorHandler');
+const verifyToken = require('./src/middleware/authMiddleware');
+const requireRole = require('./src/middleware/requireRole');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./src/config/swagger');
 
 const hospitalAuthRoutes = require('./src/routes/hospitalAuthRoutes');
+const hospitalRoutes = require('./src/routes/hospitalRoutes');
 const sharedAuthRoutes = require('./src/routes/sharedAuthRoutes');
 const donorAuthRoutes = require('./src/routes/donorAuthRoutes');
 const inventoryRoutes = require('./src/routes/inventoryRoutes');
@@ -38,8 +42,14 @@ app.use(express.json());
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
+// Public Hospital Auth Routes (register, verify-email)
 app.use('/api/hospital', hospitalAuthRoutes);
 app.use('/api/hospitals', hospitalAuthRoutes);
+
+// Protected Hospital Operations Routes (dashboard, profile, stock, search)
+app.use('/api/hospital', verifyToken, requireRole('hospital'), hospitalRoutes);
+
+// Other Routes
 app.use('/api/auth', sharedAuthRoutes);
 app.use('/api/donor', donorAuthRoutes);
 app.use('/v1/donor', donorAuthRoutes);

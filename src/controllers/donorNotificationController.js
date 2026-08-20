@@ -1,5 +1,4 @@
 const BloodRequestResponse = require('../models/BloodRequestResponse');
-const BloodRequest = require('../models/BloodRequest');
 const Donor = require('../models/Donor');
 
 exports.list = async (req, res, next) => {
