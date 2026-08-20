@@ -34,6 +34,7 @@ const donorNotificationRoutes = require('./src/routes/donorNotificationRoutes');
 const superAdminRoutes = require('./src/routes/superAdminRoutes');
 const feedbackRoutes = require('./src/routes/feedbackRoutes');
 const eventRoutes = require('./src/routes/eventRoutes');
+const startAutoCloseJob = require('./src/jobs/autoCloseBloodRequests');
 
 const app = express();
 
@@ -70,6 +71,7 @@ const PORT = process.env.PORT || 3000;
 if (process.env.NODE_ENV !== 'test') {
   connectDB().then(() => {
     app.listen(PORT, () => console.log(`Legash API running on port ${PORT}`));
+    startAutoCloseJob();
   });
 }
 
