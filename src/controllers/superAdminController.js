@@ -53,14 +53,15 @@ exports.approveHospital = async (req, res, next) => {
 
     const hospital = await Hospital.findById(id);
 
-    if (!hospital || hospital.verificationStatus !== 'pending') {
+    if (!hospital || (hospital.verificationStatus !== 'pending' && hospital.verificationStatus !== 'rejected')) {
       return res.status(400).json({
         success: false,
-        error: 'This hospital is not pending approval.',
+        error: 'This hospital is not eligible for approval.',
       });
     }
 
     hospital.verificationStatus = 'approved';
+    hospital.rejectionReason = null;
     await hospital.save();
 
     try {

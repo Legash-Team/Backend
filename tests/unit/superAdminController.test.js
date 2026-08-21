@@ -187,7 +187,7 @@ describe('Super Admin Controller Unit Tests', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.body).toEqual({
         success: false,
-        error: 'This hospital is not pending approval.'
+        error: 'This hospital is not eligible for approval.'
       });
 
       const dbHospital = await Hospital.findById(hospital._id);
@@ -197,7 +197,7 @@ describe('Super Admin Controller Unit Tests', () => {
       sendApprovalEmailSpy.mockRestore();
     });
 
-    it('returns 400 when called on an already-rejected hospital', async () => {
+    it('successfully approves an already-rejected hospital, clearing their rejection reason and sending an email', async () => {
       const hospital = await Hospital.create({
         hospitalName: 'Already Rejected Hospital',
         licenseNumber: 'LIC-2003',
@@ -207,23 +207,32 @@ describe('Super Admin Controller Unit Tests', () => {
         location: { type: 'Point', coordinates: [38.74, 9.03] },
         emailVerified: true,
         verificationStatus: 'rejected',
+        rejectionReason: 'Invalid document',
         agreedToTerms: true
       });
 
+      const sendApprovalEmailSpy = jest.spyOn(emailService, 'sendApprovalEmail').mockResolvedValue();
+
       const req = {
-        params: { id: hospital._id.toString() },
-        body: { rejectionReason: 'Does not meet requirements' }
+        params: { id: hospital._id.toString() }
       };
       const res = mockResponse();
       const next = jest.fn();
 
       await superAdminController.approveHospital(req, res, next);
 
-      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.status).toHaveBeenCalledWith(200);
       expect(res.body).toEqual({
-        success: false,
-        error: 'This hospital is not pending approval.'
+        success: true,
+        message: 'Hospital approved. They have been notified and can now log in.'
       });
+
+      const dbHospital = await Hospital.findById(hospital._id);
+      expect(dbHospital.verificationStatus).toBe('approved');
+      expect(dbHospital.rejectionReason).toBeNull();
+      expect(sendApprovalEmailSpy).toHaveBeenCalledTimes(1);
+
+      sendApprovalEmailSpy.mockRestore();
     });
 
     it('returns 400 when called with a non-existent ID', async () => {
@@ -237,7 +246,7 @@ describe('Super Admin Controller Unit Tests', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.body).toEqual({
         success: false,
-        error: 'This hospital is not pending approval.'
+        error: 'This hospital is not eligible for approval.'
       });
     });
   });

@@ -36,6 +36,7 @@ const donorNotificationRoutes = require('./src/routes/donorNotificationRoutes');
 const eventRoutes = require('./src/routes/eventRoutes');
 const feedbackController = require('./src/controllers/feedbackController');
 const donorNotificationController = require('./src/controllers/donorNotificationController');
+const inventoryRoutes = require('./src/routes/inventoryRoutes');
 
 // Middleware & Background Jobs
 const verifyToken = require('./src/middleware/authMiddleware');
@@ -75,6 +76,9 @@ app.post('/api/donor/push-token', verifyToken, requireRole('donor'), donorNotifi
 app.use('/api/donor/events', eventRoutes);
 app.use('/api/auth', sharedAuthRoutes);
 app.use('/api/superadmin', superAdminRoutes);
+
+// Facility Inventory Routes (Sprint 2 Contract)
+app.use('/v1/inventory', inventoryRoutes);
 
 // Health check endpoint
 app.get('/', (req, res) =>
