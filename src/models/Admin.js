@@ -1,4 +1,3 @@
-// Backend/src/models/Admin.js
 const mongoose = require('mongoose');
 
 const adminSchema = new mongoose.Schema(
@@ -22,6 +21,14 @@ const adminSchema = new mongoose.Schema(
     emailVerified: {
       type: Boolean,
       default: false,
+    },
+    verificationOtp: {
+      type: String,
+      default: null,
+    },
+    verificationOtpExpiresAt: {
+      type: Date,
+      default: null,
     },
     setupToken: {
       type: String,

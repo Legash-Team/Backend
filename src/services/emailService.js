@@ -51,18 +51,38 @@ async function sendApprovalEmail(toEmail) {
   });
 }
 
-async function sendRejectionEmail(toEmail) {
+async function sendRejectionEmail(toEmail, reason) {
+  const reasonText = reason ? `\nReason: ${reason}` : '';
   if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example')) {
     console.log(`\n📧 [EMAIL MOCK] Rejection email for ${toEmail}:`);
-    console.log(`👉 Your Legash hospital registration was not approved. You can submit an appeal or contact support.\n`);
+    console.log(`👉 Your Legash hospital registration was not approved.${reasonText} You can submit an appeal or contact support.\n`);
     return;
   }
+  const reasonHtml = reason ? `<p><strong>Reason for rejection:</strong> ${reason}</p>` : '';
   await transporter.sendMail({
     from: process.env.EMAIL_FROM,
     to: toEmail,
     subject: 'Legash Hospital Registration Update',
     html: `<p>Your Legash hospital registration was not approved.</p>
+           ${reasonHtml}
            <p>If you believe this was an error, you can submit an appeal or contact support <a href="mailto:support@legash.com">here</a>.</p>`,
+  });
+}
+
+async function sendAdminVerificationOtp(toEmail, otp) {
+  if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example')) {
+    console.log(`\n📧 [EMAIL MOCK] Admin OTP email for ${toEmail}:`);
+    console.log(`👉 Your Legash Admin verification code is: ${otp}\n`);
+    return;
+  }
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM,
+    to: toEmail,
+    subject: 'Your Legash Admin verification code',
+    html: `<p>You have been added as an Admin to Legash.</p>
+           <p>Your 6-digit verification code is:</p>
+           <h2>${otp}</h2>
+           <p>This code expires in 15 minutes.</p>`,
   });
 }
 
@@ -71,4 +91,5 @@ module.exports = {
   sendPasswordResetEmail,
   sendApprovalEmail,
   sendRejectionEmail,
-};
+  sendAdminVerificationOtp,
+};
