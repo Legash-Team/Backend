@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const donorAuthController = require('../controllers/donorAuthController');
-// const donorProfileController = require('../controllers/donorProfileController');
+const donorProfileController = require('../controllers/donorProfileController');
 // const donorNotificationController = require('../controllers/donorNotificationController');
 // const eventController = require('../controllers/eventController');
 const donorValidators = require('../utils/validators/donorValidators');
@@ -22,17 +22,17 @@ router.post('/reset-pin', donorValidators.resetPin, validateRequest, donorAuthCo
 router.use(verifyToken, requireRole('donor'));
 
 router.post('/unlock', donorValidators.unlock, validateRequest, donorAuthController.unlockDonor);
-// router.get('/profile', donorProfileController.getProfile);
-// router.put('/profile', donorProfileController.updateProfile);
-// router.post('/profile/change-phone/request', donorProfileController.requestPhoneChange);
-// router.post('/profile/change-phone/confirm', donorProfileController.confirmPhoneChange);
-// router.post('/profile/change-pin', donorProfileController.changePin);
-// router.delete('/profile', donorProfileController.deleteAccount);
+router.get('/profile', donorProfileController.getProfile);
+router.put('/profile', donorProfileController.updateProfile);
+router.post('/profile/change-phone/request', donorProfileController.requestPhoneChange);
+router.post('/profile/change-phone/confirm', donorProfileController.confirmPhoneChange);
+router.post('/profile/change-pin', donorProfileController.changePin);
+router.delete('/profile', donorProfileController.deleteAccount);
 
 // router.get('/notifications', donorNotificationController.list);
 // router.post('/notifications/:id/respond', donorNotificationController.respond);
 // router.post('/push-token', donorNotificationController.registerPushToken);
 // router.get('/events', eventController.listPublicEvents);
-// router.get('/blood-centers', donorProfileController.getBloodCenters);
+router.get('/blood-centers', donorProfileController.getBloodCenters);
 
 module.exports = router;
