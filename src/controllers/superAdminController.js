@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 const Hospital = require('../models/Hospital');
-const Admin = require('../models/Admin');
+const Feedback = require('../models/Feedback');
+const Event = require('../models/Event');
 const emailService = require('../services/emailService');
-const generateResetCode = require('../utils/generateResetCode');
 
 exports.listPendingHospitals = async (req, res, next) => {
   try {
@@ -76,7 +76,10 @@ exports.approveHospital = async (req, res, next) => {
 exports.rejectHospital = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { reason, rejectionReason } = req.body || {};
+    const finalReason = (reason || rejectionReason || '').toString().trim();
 
+    // 1. Status and existence validation first
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
@@ -93,11 +96,20 @@ exports.rejectHospital = async (req, res, next) => {
       });
     }
 
+    // 2. Rejection reason required for pending hospital
+    if (!finalReason) {
+      return res.status(400).json({
+        success: false,
+        error: 'A rejection reason is required.'
+      });
+    }
+
     hospital.verificationStatus = 'rejected';
+    hospital.rejectionReason = finalReason;
     await hospital.save();
 
     try {
-      await emailService.sendRejectionEmail(hospital.email);
+      await emailService.sendRejectionEmail(hospital.email, finalReason);
     } catch (emailErr) {
       console.warn('⚠️ SMTP Error sending rejection email:', emailErr.message);
     }
@@ -111,171 +123,77 @@ exports.rejectHospital = async (req, res, next) => {
   }
 };
 
-exports.createAdmin = async (req, res, next) => {
+exports.listFeedbacks = async (req, res, next) => {
   try {
-    const { name, email, permissions, role } = req.body;
-
-    if (!name || !email) {
-      return res.status(400).json({
-        success: false,
-        error: 'Name and email are required.'
-      });
-    }
-
-    const cleanEmail = email.toLowerCase().trim();
-
-    const existingAdmin = await Admin.findOne({ email: cleanEmail });
-    if (existingAdmin) {
-      return res.status(400).json({
-        success: false,
-        error: 'An Admin with this email already exists.'
-      });
-    }
-
-    let parsedPermissions = {
-      canApproveHospitals: false,
-      canPostEvents: false
-    };
-
-    if (permissions && typeof permissions === 'object') {
-      parsedPermissions.canApproveHospitals = Boolean(permissions.canApproveHospitals);
-      parsedPermissions.canPostEvents = Boolean(permissions.canPostEvents);
-    } else if (typeof role === 'string') {
-      const lowerRole = role.toLowerCase();
-      if (lowerRole.includes('approve') || lowerRole === 'can approve hospitals') {
-        parsedPermissions.canApproveHospitals = true;
-      }
-      if (lowerRole.includes('post') || lowerRole.includes('event') || lowerRole === 'can post events') {
-        parsedPermissions.canPostEvents = true;
-      }
-      if (lowerRole.includes('both') || lowerRole === 'all') {
-        parsedPermissions.canApproveHospitals = true;
-        parsedPermissions.canPostEvents = true;
-      }
-    } else {
-      if (req.body.canApproveHospitals !== undefined) {
-        parsedPermissions.canApproveHospitals = Boolean(req.body.canApproveHospitals);
-      }
-      if (req.body.canPostEvents !== undefined) {
-        parsedPermissions.canPostEvents = Boolean(req.body.canPostEvents);
-      }
-    }
-
-    const { code, expiresAt } = generateResetCode ? generateResetCode() : {
-      code: Math.floor(100000 + Math.random() * 900000).toString(),
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000)
-    };
-
-    const admin = new Admin({
-      name: name.trim(),
-      email: cleanEmail,
-      permissions: parsedPermissions,
-      emailVerified: false,
-      verificationOtp: code,
-      verificationOtpExpiresAt: expiresAt,
-      passwordHash: null
+    const feedbacks = await Feedback.find().sort({ createdAt: -1 });
+    return res.status(200).json({
+      success: true,
+      feedbacks
     });
+  } catch (error) {
+    next(error);
+  }
+};
 
-    await admin.save();
-
-    try {
-      if (emailService.sendAdminVerificationOtp) {
-        await emailService.sendAdminVerificationOtp(cleanEmail, code);
-      }
-    } catch (emailErr) {
-      console.warn('⚠️ SMTP Error sending admin verification OTP:', emailErr.message);
+exports.markFeedbackReviewed = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(404).json({ success: false, error: 'Feedback not found.' });
     }
+
+    const feedback = await Feedback.findByIdAndUpdate(id, { status: 'reviewed' }, { new: true });
+    if (!feedback) {
+      return res.status(404).json({ success: false, error: 'Feedback not found.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Feedback marked as reviewed.',
+      feedback
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.createEvent = async (req, res, next) => {
+  try {
+    const { mediaUrl, mediaType, description, applyLink, closesAt } = req.body;
+
+    if (!description || !closesAt) {
+      return res.status(400).json({
+        success: false,
+        error: 'Description and closesAt timestamp are required.'
+      });
+    }
+
+    const event = await Event.create({
+      mediaUrl: mediaUrl || null,
+      mediaType: mediaType || 'image',
+      description: description.trim(),
+      applyLink: applyLink || null,
+      closesAt: new Date(closesAt),
+      createdBy: req.user?.id,
+      creatorModel: 'SuperAdmin'
+    });
 
     return res.status(201).json({
       success: true,
-      message: 'Admin created successfully. Verification OTP has been sent.',
-      admin: {
-        id: admin._id,
-        name: admin.name,
-        email: admin.email,
-        permissions: admin.permissions,
-        emailVerified: admin.emailVerified,
-        createdAt: admin.createdAt
-      }
+      message: 'Event posted successfully.',
+      event
     });
   } catch (error) {
     next(error);
   }
 };
 
-exports.listAdmins = async (req, res, next) => {
+exports.listAdminEvents = async (req, res, next) => {
   try {
-    const admins = await Admin.find().sort({ createdAt: -1 });
-
-    const formattedAdmins = admins.map(admin => ({
-      id: admin._id,
-      name: admin.name,
-      email: admin.email,
-      permissions: admin.permissions,
-      emailVerified: admin.emailVerified,
-      createdAt: admin.createdAt
-    }));
-
+    const events = await Event.find().sort({ createdAt: -1 });
     return res.status(200).json({
       success: true,
-      admins: formattedAdmins
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-exports.verifyAdminOtp = async (req, res, next) => {
-  try {
-    const { email, otp, code, verificationOtp } = req.body;
-    const submittedOtp = (otp || code || verificationOtp || '').toString().trim();
-
-    if (!email || !submittedOtp) {
-      return res.status(400).json({
-        success: false,
-        error: 'Email and OTP are required.'
-      });
-    }
-
-    const cleanEmail = email.toLowerCase().trim();
-    const admin = await Admin.findOne({ email: cleanEmail });
-
-    if (!admin) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid email or OTP.'
-      });
-    }
-
-    if (admin.emailVerified) {
-      return res.status(400).json({
-        success: false,
-        error: 'Email is already verified.'
-      });
-    }
-
-    if (!admin.verificationOtp || admin.verificationOtp !== submittedOtp) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid or expired OTP.'
-      });
-    }
-
-    if (admin.verificationOtpExpiresAt && admin.verificationOtpExpiresAt < new Date()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid or expired OTP.'
-      });
-    }
-
-    admin.emailVerified = true;
-    admin.verificationOtp = null;
-    admin.verificationOtpExpiresAt = null;
-    await admin.save();
-
-    return res.status(200).json({
-      success: true,
-      message: 'Admin email verified successfully. You can now set up your password.'
+      events
     });
   } catch (error) {
     next(error);

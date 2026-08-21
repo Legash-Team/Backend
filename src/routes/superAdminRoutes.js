@@ -60,11 +60,22 @@ router.post('/hospitals/:id/approve', verifyToken, requireRole('superadmin'), su
  *         name: id
  *         required: true
  *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [reason]
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 example: Incomplete license documentation
  *     responses:
  *       200:
  *         description: Hospital rejected and notified
  *       400:
- *         description: Hospital is not currently pending approval
+ *         description: Hospital is not currently pending approval or reason missing
  *       401:
  *         description: No or invalid token
  *       403:
@@ -74,10 +85,49 @@ router.post('/hospitals/:id/reject', verifyToken, requireRole('superadmin'), sup
 
 /**
  * @swagger
- * /superadmin/admins:
+ * /superadmin/feedbacks:
+ *   get:
+ *     summary: List feedbacks submitted by rejected hospitals
+ *     tags: [SuperAdmin, Feedbacks]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of feedbacks
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (Super Admin only)
+ */
+router.get('/feedbacks', verifyToken, requireRole('superadmin'), superAdminController.listFeedbacks);
+
+/**
+ * @swagger
+ * /superadmin/feedbacks/{id}/review:
+ *   patch:
+ *     summary: Mark a feedback as reviewed
+ *     tags: [SuperAdmin, Feedbacks]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Feedback marked as reviewed
+ *       404:
+ *         description: Feedback not found
+ */
+router.patch('/feedbacks/:id/review', verifyToken, requireRole('superadmin'), superAdminController.markFeedbackReviewed);
+
+/**
+ * @swagger
+ * /superadmin/events:
  *   post:
- *     summary: Create an Admin account and send verification OTP
- *     tags: [SuperAdmin]
+ *     summary: Post a new event
+ *     tags: [SuperAdmin, Events]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -86,80 +136,33 @@ router.post('/hospitals/:id/reject', verifyToken, requireRole('superadmin'), sup
  *         application/json:
  *           schema:
  *             type: object
- *             required: [name, email]
+ *             required: [description, closesAt]
  *             properties:
- *               name:
- *                 type: string
- *                 example: Admin User
- *               email:
- *                 type: string
- *                 example: admin@example.com
- *               permissions:
- *                 type: object
- *                 properties:
- *                   canApproveHospitals:
- *                     type: boolean
- *                     default: false
- *                   canPostEvents:
- *                     type: boolean
- *                     default: false
+ *               description: { type: string }
+ *               closesAt: { type: string, format: date-time }
+ *               mediaUrl: { type: string }
+ *               mediaType: { type: string, enum: [image, video] }
+ *               applyLink: { type: string }
  *     responses:
  *       201:
- *         description: Admin created successfully and OTP sent
+ *         description: Event created successfully
  *       400:
- *         description: Validation error or admin already exists
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden (Super Admin only)
+ *         description: Validation error
  */
-router.post('/admins', verifyToken, requireRole('superadmin'), superAdminController.createAdmin);
+router.post('/events', verifyToken, requireRole('superadmin'), superAdminController.createEvent);
 
 /**
  * @swagger
- * /superadmin/admins:
+ * /superadmin/events:
  *   get:
- *     summary: List all Admin accounts
- *     tags: [SuperAdmin]
+ *     summary: List events for Super Admin
+ *     tags: [SuperAdmin, Events]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: List of Admins
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden (Super Admin only)
+ *         description: List of events
  */
-router.get('/admins', verifyToken, requireRole('superadmin'), superAdminController.listAdmins);
-
-/**
- * @swagger
- * /superadmin/admins/verify-otp:
- *   post:
- *     summary: Verify Admin OTP
- *     tags: [SuperAdmin]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [email, otp]
- *             properties:
- *               email:
- *                 type: string
- *                 example: admin@example.com
- *               otp:
- *                 type: string
- *                 example: "123456"
- *     responses:
- *       200:
- *         description: Email verified successfully
- *       400:
- *         description: Invalid or expired OTP
- */
-router.post('/admins/verify-otp', superAdminController.verifyAdminOtp);
-router.post('/verify-admin-otp', superAdminController.verifyAdminOtp);
+router.get('/events', verifyToken, requireRole('superadmin'), superAdminController.listAdminEvents);
 
 module.exports = router;

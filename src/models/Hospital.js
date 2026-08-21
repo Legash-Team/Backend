@@ -67,6 +67,7 @@ const hospitalSchema = new mongoose.Schema({
   emailVerified: { type: Boolean, default: false },
   verificationStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
   verificationToken: { type: String, default: null },
+  rejectionReason: { type: String, default: null },
   agreedToTerms: { type: Boolean, default: true },
   resetCode: { type: String, default: null },
   resetCodeExpiresAt: { type: Date, default: null },
