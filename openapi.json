@@ -1,0 +1,1930 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Legash Smart Blood Donation & Logistics Network API",
+    "version": "3.0.0-PROD",
+    "description": "Official Enterprise REST API Specification for Legash Sprint 3. Defines all contracts, schemas, security policies, and workflows for Hospital operations, Donor PIN lifecycle, Emergency logistics, Super Admin oversight, and Scoped Admin RBAC.",
+    "contact": {
+      "name": "Legash Engineering & Architecture Team",
+      "email": "learnestifanos@gmail.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Current Host Server"
+    },
+    {
+      "url": "https://backend-qifm.onrender.com",
+      "description": "Render Production Server"
+    },
+    {
+      "url": "http://localhost:3000",
+      "description": "Local Development Server"
+    }
+  ],
+  "tags": [
+    { "name": "Hospital Auth & Profile", "description": "Registration, email OTP verification, profile management, and password flows for hospitals" },
+    { "name": "Donor Auth & Profile", "description": "Passwordless registration, phone OTP verification, 4-digit PIN setup, device-bound unlock, and profile management" },
+    { "name": "Blood Stock & Requests", "description": "Fixed 8 blood-type inventory management, custom-close blood requests, and compatible donor matching" },
+    { "name": "Donor Notifications & Feed", "description": "Real-time blood alerts, acceptance next-step workflows, push tokens, and public community events" },
+    { "name": "Super Admin & Admin RBAC", "description": "Hospital vetting, feedback review, event publishing, and granular scoped admin management" },
+    { "name": "Shared Auth", "description": "Unified authentication, password recovery, and admin credential setup" }
+  ],
+  "paths": {
+    "/api/hospital/register": {
+      "post": {
+        "tags": ["Hospital Auth & Profile"],
+        "summary": "Register a new hospital account",
+        "description": "Creates an unverified, pending hospital account. Triggers an email OTP and keeps verificationStatus as 'pending'.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/HospitalRegisterRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Hospital registered successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HospitalRegisterResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" },
+          "409": { "$ref": "#/components/responses/409Conflict" }
+        }
+      }
+    },
+    "/api/hospital/verify-email": {
+      "post": {
+        "tags": ["Hospital Auth & Profile"],
+        "summary": "Verify hospital email with OTP",
+        "description": "Validates the 6-digit OTP sent to the hospital email. Sets emailVerified to true while keeping verificationStatus as 'pending' for Super Admin approval.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "code"],
+                "properties": {
+                  "email": { "type": "string", "format": "email", "example": "contact@stpaul.edu.et" },
+                  "code": { "type": "string", "pattern": "^\\d{6}$", "example": "482910" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Email verified successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" }
+        }
+      }
+    },
+    "/api/hospital/resend-email-code": {
+      "post": {
+        "tags": ["Hospital Auth & Profile"],
+        "summary": "Resend hospital verification email OTP",
+        "description": "Dispatches a fresh 6-digit OTP subject to a strict 60-second cooldown window.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                  "email": { "type": "string", "format": "email", "example": "contact@stpaul.edu.et" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Generic response confirming OTP dispatch attempt",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+              }
+            }
+          },
+          "429": { "$ref": "#/components/responses/429RateLimit" }
+        }
+      }
+    },
+    "/api/hospital/dashboard": {
+      "get": {
+        "tags": ["Hospital Auth & Profile"],
+        "summary": "Get authenticated hospital dashboard summary",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Hospital profile and current 8-type blood stock",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HospitalDashboardResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/401Unauthorized" },
+          "403": { "$ref": "#/components/responses/403Forbidden" }
+        }
+      }
+    },
+    "/api/hospital/profile": {
+      "get": {
+        "tags": ["Hospital Auth & Profile"],
+        "summary": "Get hospital profile",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Full hospital profile information",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HospitalProfileResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/401Unauthorized" }
+        }
+      },
+      "put": {
+        "tags": ["Hospital Auth & Profile"],
+        "summary": "Update hospital profile (name and phone directly)",
+        "description": "Updates hospitalName and phone directly. License number and location are immutable.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "hospitalName": { "type": "string", "example": "St. Paul Millennium Medical Center" },
+                  "phone": { "type": "string", "pattern": "^\\+251\\d{9}$", "example": "+251911332299" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile updated successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HospitalProfileResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" },
+          "409": { "$ref": "#/components/responses/409Conflict" }
+        }
+      },
+      "delete": {
+        "tags": ["Hospital Auth & Profile"],
+        "summary": "Permanently delete/anonymize hospital account",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Account deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/401Unauthorized" }
+        }
+      }
+    },
+    "/api/hospital/profile/change-email/request": {
+      "post": {
+        "tags": ["Hospital Auth & Profile"],
+        "summary": "Request email change with OTP re-verification",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["newEmail"],
+                "properties": {
+                  "newEmail": { "type": "string", "format": "email", "example": "stpaul.admin@legash.edu.et" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verification OTP sent to new email",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+              }
+            }
+          },
+          "409": { "$ref": "#/components/responses/409Conflict" }
+        }
+      }
+    },
+    "/api/hospital/profile/change-email/confirm": {
+      "post": {
+        "tags": ["Hospital Auth & Profile"],
+        "summary": "Confirm email change via OTP",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["code"],
+                "properties": {
+                  "code": { "type": "string", "pattern": "^\\d{6}$", "example": "482910" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Email updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Email address updated successfully." },
+                    "email": { "type": "string", "format": "email", "example": "stpaul.admin@legash.edu.et" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" }
+        }
+      }
+    },
+    "/api/hospital/profile/change-password": {
+      "post": {
+        "tags": ["Hospital Auth & Profile"],
+        "summary": "Change password from within authenticated profile",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["currentPassword", "newPassword", "confirmPassword"],
+                "properties": {
+                  "currentPassword": { "type": "string", "example": "StrongHospPass123!" },
+                  "newPassword": { "type": "string", "minLength": 8, "example": "NewHospPass2026!" },
+                  "confirmPassword": { "type": "string", "minLength": 8, "example": "NewHospPass2026!" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password changed successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" },
+          "401": { "$ref": "#/components/responses/401Unauthorized" }
+        }
+      }
+    },
+    "/api/hospital/blood-stock": {
+      "get": {
+        "tags": ["Blood Stock & Requests"],
+        "summary": "Get inventory for all 8 fixed blood types",
+        "description": "Directly readable by authenticated hospitals without extra credential prompts.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Inventory list and key-value stock map",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BloodStockListResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/401Unauthorized" }
+        }
+      }
+    },
+    "/api/hospital/blood-stock/{bloodType}": {
+      "put": {
+        "tags": ["Blood Stock & Requests"],
+        "summary": "Update units for a specific blood type (increment/decrement)",
+        "description": "Adjusts stock without a password gate. Rejects negative quantities.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "bloodType",
+            "in": "path",
+            "required": true,
+            "schema": { "$ref": "#/components/schemas/BloodType" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "availableUnits": { "type": "number", "minimum": 0, "example": 25 },
+                  "quantity": { "type": "number", "minimum": 0, "example": 25 },
+                  "increment": { "type": "number", "example": 1 },
+                  "decrement": { "type": "number", "example": 1 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Blood stock unit updated successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BloodStockUpdateResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" },
+          "401": { "$ref": "#/components/responses/401Unauthorized" }
+        }
+      }
+    },
+    "/api/hospital/blood-requests": {
+      "post": {
+        "tags": ["Blood Stock & Requests"],
+        "summary": "Create a blood request with custom closesAt & compatible donor matching",
+        "description": "Evaluates standard ABO/Rh blood compatibility and dispatches alerts to nearby donors with compatible blood types (excluding 'unknown').",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateBloodRequestInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Blood request created and compatible donors notified",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CreateBloodRequestResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" },
+          "401": { "$ref": "#/components/responses/401Unauthorized" }
+        }
+      },
+      "get": {
+        "tags": ["Blood Stock & Requests"],
+        "summary": "List hospital blood requests with urgency filter",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "urgency",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["all", "emergency", "notUrgent"], "default": "all" }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["open", "closed"] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of hospital blood requests",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BloodRequestListResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/401Unauthorized" }
+        }
+      }
+    },
+    "/api/hospital/blood-requests/{id}/responses": {
+      "get": {
+        "tags": ["Blood Stock & Requests"],
+        "summary": "Get accepted donor contact details and response tallies",
+        "description": "Reveals donor contact info only for donors who explicitly accepted this hospital's request.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of accepted donor contact objects with pending and denied counts",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BloodRequestResponsesSummary" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/404NotFound" }
+        }
+      }
+    },
+    "/api/hospital/blood-requests/{id}/close": {
+      "patch": {
+        "tags": ["Blood Stock & Requests"],
+        "summary": "Manually close a blood request",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request closed successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" }
+        }
+      }
+    },
+    "/api/donor/register": {
+      "post": {
+        "tags": ["Donor Auth & Profile"],
+        "summary": "Register donor without password",
+        "description": "Accepts donor identification and optional 'unknown' blood type. Dispatches SMS OTP.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/DonorRegisterRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Donor registered. OTP dispatched.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DonorRegisterResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" },
+          "409": { "$ref": "#/components/responses/409Conflict" }
+        }
+      }
+    },
+    "/api/donor/verify-otp": {
+      "post": {
+        "tags": ["Donor Auth & Profile"],
+        "summary": "Verify donor phone via SMS OTP",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["phone", "code"],
+                "properties": {
+                  "phone": { "type": "string", "pattern": "^\\+251\\d{9}$", "example": "+251911445566" },
+                  "code": { "type": "string", "pattern": "^\\d{6}$", "example": "482910" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Phone verified. Direct to Set PIN screen.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" }
+        }
+      }
+    },
+    "/api/donor/resend-otp": {
+      "post": {
+        "tags": ["Donor Auth & Profile"],
+        "summary": "Resend donor SMS OTP",
+        "description": "Sends fresh OTP subject to a 60-second cooldown.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["phone"],
+                "properties": {
+                  "phone": { "type": "string", "pattern": "^\\+251\\d{9}$", "example": "+251911445566" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Generic anti-enumeration success message",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+              }
+            }
+          },
+          "429": { "$ref": "#/components/responses/429RateLimit" }
+        }
+      }
+    },
+    "/api/donor/set-pin": {
+      "post": {
+        "tags": ["Donor Auth & Profile"],
+        "summary": "Set 4-digit PIN (Establishes device session)",
+        "description": "Hashes 4-digit PIN and returns initial device session token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["phone", "pin", "confirmPin"],
+                "properties": {
+                  "phone": { "type": "string", "pattern": "^\\+251\\d{9}$", "example": "+251911445566" },
+                  "pin": { "type": "string", "pattern": "^\\d{4}$", "example": "1234" },
+                  "confirmPin": { "type": "string", "pattern": "^\\d{4}$", "example": "1234" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PIN established. Returns authentication token and summary.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DonorAuthSuccessResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" }
+        }
+      }
+    },
+    "/api/donor/unlock": {
+      "post": {
+        "tags": ["Donor Auth & Profile"],
+        "summary": "Unlock app with 4-digit PIN (Device-bound)",
+        "description": "Uses device token to scope lookup to req.user.id and compares PIN for that donor.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["pin"],
+                "properties": {
+                  "pin": { "type": "string", "pattern": "^\\d{4}$", "example": "1234" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Device unlocked. Returns fresh JWT session.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DonorAuthSuccessResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/401Unauthorized" }
+        }
+      }
+    },
+    "/api/donor/forgot-pin": {
+      "post": {
+        "tags": ["Donor Auth & Profile"],
+        "summary": "Request PIN reset OTP",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["phone"],
+                "properties": {
+                  "phone": { "type": "string", "pattern": "^\\+251\\d{9}$", "example": "+251911445566" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Generic message confirming OTP dispatch",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/donor/reset-pin": {
+      "post": {
+        "tags": ["Donor Auth & Profile"],
+        "summary": "Reset 4-digit PIN with OTP",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["phone", "code", "pin", "confirmPin"],
+                "properties": {
+                  "phone": { "type": "string", "pattern": "^\\+251\\d{9}$", "example": "+251911445566" },
+                  "code": { "type": "string", "pattern": "^\\d{6}$", "example": "482910" },
+                  "pin": { "type": "string", "pattern": "^\\d{4}$", "example": "4321" },
+                  "confirmPin": { "type": "string", "pattern": "^\\d{4}$", "example": "4321" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PIN reset successful",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DonorAuthSuccessResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" }
+        }
+      }
+    },
+    "/api/donor/profile": {
+      "get": {
+        "tags": ["Donor Auth & Profile"],
+        "summary": "Get donor profile (all fields visible after PIN login)",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Full donor profile object",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DonorProfileResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/401Unauthorized" }
+        }
+      },
+      "put": {
+        "tags": ["Donor Auth & Profile"],
+        "summary": "Update donor profile",
+        "description": "Allows updating name, dob, bloodType, weightKg, heightCm, and healthNotes. Rejects updates to fin and gender.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/DonorUpdateProfileInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile updated successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DonorProfileResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" }
+        }
+      },
+      "delete": {
+        "tags": ["Donor Auth & Profile"],
+        "summary": "Permanently delete/anonymize donor account",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Account deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/donor/profile/change-phone/request": {
+      "post": {
+        "tags": ["Donor Auth & Profile"],
+        "summary": "Request phone number change with OTP",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["newPhone"],
+                "properties": {
+                  "newPhone": { "type": "string", "pattern": "^\\+251\\d{9}$", "example": "+251911998877" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP dispatched to current phone",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+              }
+            }
+          },
+          "409": { "$ref": "#/components/responses/409Conflict" }
+        }
+      }
+    },
+    "/api/donor/profile/change-phone/confirm": {
+      "post": {
+        "tags": ["Donor Auth & Profile"],
+        "summary": "Confirm phone number update via OTP",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["code"],
+                "properties": {
+                  "code": { "type": "string", "pattern": "^\\d{6}$", "example": "482910" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Phone number updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Phone number updated successfully." },
+                    "phone": { "type": "string", "example": "+251911998877" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/donor/profile/change-pin": {
+      "post": {
+        "tags": ["Donor Auth & Profile"],
+        "summary": "Change 4-digit PIN inside profile",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["currentPin", "newPin", "confirmPin"],
+                "properties": {
+                  "currentPin": { "type": "string", "pattern": "^\\d{4}$", "example": "1234" },
+                  "newPin": { "type": "string", "pattern": "^\\d{4}$", "example": "5678" },
+                  "confirmPin": { "type": "string", "pattern": "^\\d{4}$", "example": "5678" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PIN changed successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/401Unauthorized" }
+        }
+      }
+    },
+    "/api/donor/notifications": {
+      "get": {
+        "tags": ["Donor Notifications & Feed"],
+        "summary": "List donor blood alerts and notifications",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["pending", "ongoing", "accepted", "denied"] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notifications feed for donor",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DonorNotificationListResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/donor/notifications/{id}/respond": {
+      "post": {
+        "tags": ["Donor Notifications & Feed"],
+        "summary": "Respond to a blood donation alert (accept or deny)",
+        "description": "When accepted, returns nextSteps location and contact details for the mobile suggestion popup.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["response"],
+                "properties": {
+                  "response": { "type": "string", "enum": ["accepted", "denied"], "example": "accepted" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Response recorded with nextSteps guidance",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DonorRespondResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" }
+        }
+      }
+    },
+    "/api/donor/push-token": {
+      "post": {
+        "tags": ["Donor Notifications & Feed"],
+        "summary": "Register mobile device FCM push token",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["pushToken"],
+                "properties": {
+                  "pushToken": { "type": "string", "example": "fcm_token_device_abc123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Push token registered",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/donor/events": {
+      "get": {
+        "tags": ["Donor Notifications & Feed"],
+        "summary": "Get open public blood donation events for donor dashboard",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of active public events",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DonorEventsFeedResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/donor/blood-centers": {
+      "get": {
+        "tags": ["Donor Notifications & Feed"],
+        "summary": "Get list of nearby blood centers (empty list valid)",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of blood centers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "centers": { "type": "array", "items": { "type": "object" }, "example": [] }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/superadmin/hospitals/pending": {
+      "get": {
+        "tags": ["Super Admin & Admin RBAC"],
+        "summary": "List pending email-verified hospitals",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of pending hospitals",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PendingHospitalsListResponse" }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/403Forbidden" }
+        }
+      }
+    },
+    "/api/superadmin/hospitals/{id}/approve": {
+      "post": {
+        "tags": ["Super Admin & Admin RBAC"],
+        "summary": "Approve hospital registration",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Hospital approved and notified",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/superadmin/hospitals/{id}/reject": {
+      "post": {
+        "tags": ["Super Admin & Admin RBAC"],
+        "summary": "Reject hospital registration (requires reason)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["reason"],
+                "properties": {
+                  "reason": { "type": "string", "example": "License expired; please re-upload valid accreditation certificate." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hospital rejected with reason",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" }
+        }
+      }
+    },
+    "/api/hospital/feedback": {
+      "post": {
+        "tags": ["Super Admin & Admin RBAC"],
+        "summary": "Submit feedback/appeal by rejected hospital (Public)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "message"],
+                "properties": {
+                  "email": { "type": "string", "format": "email", "example": "contact@stpaul.edu.et" },
+                  "hospitalName": { "type": "string", "example": "St. Paul Millennium Hospital" },
+                  "message": { "type": "string", "example": "We have uploaded the renewed accreditation certificate." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Feedback submitted successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FeedbackSubmissionResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/superadmin/feedbacks": {
+      "get": {
+        "tags": ["Super Admin & Admin RBAC"],
+        "summary": "List all submitted hospital feedback",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Feedbacks array",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FeedbackListResponse" }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/403Forbidden" }
+        }
+      }
+    },
+    "/api/superadmin/feedbacks/{id}/reviewed": {
+      "patch": {
+        "tags": ["Super Admin & Admin RBAC"],
+        "summary": "Mark feedback as reviewed",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feedback status updated to reviewed",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FeedbackReviewedResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/superadmin/events": {
+      "post": {
+        "tags": ["Super Admin & Admin RBAC"],
+        "summary": "Create community blood drive event post",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateEventInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Event created successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CreateEventResponse" }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/403Forbidden" }
+        }
+      },
+      "get": {
+        "tags": ["Super Admin & Admin RBAC"],
+        "summary": "List all events for management",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of events",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AdminEventsListResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/superadmin/admins": {
+      "post": {
+        "tags": ["Super Admin & Admin RBAC"],
+        "summary": "Create scoped Admin account & trigger setup invitation",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateAdminInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Admin created and invitation dispatched",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CreateAdminResponse" }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/403Forbidden" },
+          "409": { "$ref": "#/components/responses/409Conflict" }
+        }
+      },
+      "get": {
+        "tags": ["Super Admin & Admin RBAC"],
+        "summary": "List existing Admin users",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of admin accounts",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AdminListResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Shared Auth"],
+        "summary": "Unified login for Hospital, Super Admin, and Admin",
+        "description": "Validates credentials and returns JWT token with role and capability permissions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "format": "email", "example": "admin@legash.org" },
+                  "password": { "type": "string", "example": "SuperAdminSecurePass123!" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authentication successful",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SharedLoginResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/401Unauthorized" }
+        }
+      }
+    },
+    "/api/auth/admin/setup": {
+      "post": {
+        "tags": ["Shared Auth"],
+        "summary": "Configure new Admin password using setup token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["setupToken", "password"],
+                "properties": {
+                  "setupToken": { "type": "string", "example": "token_hex_32_chars" },
+                  "password": { "type": "string", "minLength": 8, "example": "AdminPassSecure123!" },
+                  "confirmPassword": { "type": "string", "minLength": 8, "example": "AdminPassSecure123!" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Admin password established. Account ready for login.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" }
+        }
+      }
+    },
+    "/api/auth/forgot-password": {
+      "post": {
+        "tags": ["Shared Auth"],
+        "summary": "Request password reset code for Hospital or Admin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                  "email": { "type": "string", "format": "email", "example": "contact@stpaul.edu.et" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reset email dispatched",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/reset-password": {
+      "post": {
+        "tags": ["Shared Auth"],
+        "summary": "Reset password with emailed 6-digit code",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "code", "newPassword"],
+                "properties": {
+                  "email": { "type": "string", "format": "email", "example": "contact@stpaul.edu.et" },
+                  "code": { "type": "string", "pattern": "^\\d{6}$", "example": "482910" },
+                  "newPassword": { "type": "string", "minLength": 8, "example": "StrongHospPass2026!" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password reset successful",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "BloodType": {
+        "type": "string",
+        "enum": ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
+      },
+      "BloodTypeWithUnknown": {
+        "type": "string",
+        "enum": ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "unknown"]
+      },
+      "StandardSuccessMessage": {
+        "type": "object",
+        "required": ["success", "message"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Operation executed successfully." }
+        }
+      },
+      "StandardError": {
+        "type": "object",
+        "required": ["success", "error"],
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "error": { "type": "string", "example": "Error description." }
+        }
+      },
+      "HospitalRegisterRequest": {
+        "type": "object",
+        "required": ["hospitalName", "email", "password", "phone", "licenseNumber", "location"],
+        "properties": {
+          "hospitalName": { "type": "string", "example": "St. Paul Millennium Medical Center" },
+          "email": { "type": "string", "format": "email", "example": "contact@stpaul.edu.et" },
+          "password": { "type": "string", "minLength": 8, "example": "StrongHospPass123!" },
+          "phone": { "type": "string", "pattern": "^\\+251\\d{9}$", "example": "+251911332211" },
+          "licenseNumber": { "type": "string", "example": "HOSP-LIC-ADDIS-2026" },
+          "location": {
+            "type": "object",
+            "required": ["lat", "lng"],
+            "properties": {
+              "lat": { "type": "number", "example": 9.0305 },
+              "lng": { "type": "number", "example": 38.7402 },
+              "address": { "type": "string", "example": "Gulele Sub-City, Addis Ababa" }
+            }
+          },
+          "agreedToTerms": { "type": "boolean", "example": true }
+        }
+      },
+      "HospitalRegisterResponse": {
+        "type": "object",
+        "required": ["success", "message", "hospitalId"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Registered. Verify your email. Your account will stay pending until Super Admin approves it." },
+          "hospitalId": { "type": "string", "example": "60d5f1112233445566778899" }
+        }
+      },
+      "HospitalDashboardResponse": {
+        "type": "object",
+        "required": ["success", "hospital"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "hospital": { "$ref": "#/components/schemas/HospitalProfileData" }
+        }
+      },
+      "HospitalProfileResponse": {
+        "type": "object",
+        "required": ["success", "profile"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "profile": { "$ref": "#/components/schemas/HospitalProfileData" }
+        }
+      },
+      "HospitalProfileData": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "60d5f1112233445566778899" },
+          "hospitalName": { "type": "string", "example": "St. Paul Millennium Medical Center" },
+          "email": { "type": "string", "format": "email", "example": "contact@stpaul.edu.et" },
+          "phone": { "type": "string", "example": "+251911332211" },
+          "licenseNumber": { "type": "string", "example": "HOSP-LIC-ADDIS-2026" },
+          "location": {
+            "type": "object",
+            "properties": {
+              "lat": { "type": "number", "example": 9.0305 },
+              "lng": { "type": "number", "example": 38.7402 },
+              "address": { "type": "string", "example": "Gulele Sub-City, Addis Ababa" }
+            }
+          },
+          "emailVerified": { "type": "boolean", "example": true },
+          "verificationStatus": { "type": "string", "enum": ["pending", "approved", "rejected"], "example": "approved" },
+          "bloodStock": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/BloodStockItem" }
+          }
+        }
+      },
+      "BloodStockItem": {
+        "type": "object",
+        "required": ["bloodType", "availableUnits"],
+        "properties": {
+          "bloodType": { "$ref": "#/components/schemas/BloodType" },
+          "availableUnits": { "type": "number", "example": 12 },
+          "reservedUnits": { "type": "number", "example": 2 },
+          "minimumUnits": { "type": "number", "example": 5 }
+        }
+      },
+      "BloodStockListResponse": {
+        "type": "object",
+        "required": ["success", "bloodStock", "stock"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "bloodStock": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/BloodStockItem" }
+          },
+          "stock": {
+            "type": "object",
+            "additionalProperties": { "type": "number" },
+            "example": { "A+": 12, "A-": 4, "B+": 8, "B-": 2, "AB+": 5, "AB-": 1, "O+": 20, "O-": 6 }
+          }
+        }
+      },
+      "BloodStockUpdateResponse": {
+        "type": "object",
+        "required": ["success", "message", "bloodType", "availableUnits"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Stock updated for A+." },
+          "bloodType": { "$ref": "#/components/schemas/BloodType" },
+          "availableUnits": { "type": "number", "example": 25 }
+        }
+      },
+      "CreateBloodRequestInput": {
+        "type": "object",
+        "required": ["bloodType", "quantityNeeded", "closesAt"],
+        "properties": {
+          "bloodType": { "$ref": "#/components/schemas/BloodType" },
+          "quantityNeeded": { "type": "integer", "minimum": 1, "example": 4 },
+          "isEmergency": { "type": "boolean", "default": false, "example": true },
+          "description": { "type": "string", "example": "Emergency trauma surgery" },
+          "closesAt": { "type": "string", "format": "date-time", "example": "2026-08-25T18:00:00.000Z" }
+        }
+      },
+      "CreateBloodRequestResponse": {
+        "type": "object",
+        "required": ["success", "message", "requestId", "notifiedDonorCount"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Request posted. Nearby compatible donors have been notified." },
+          "requestId": { "type": "string", "example": "60d7b1112233445566778899" },
+          "notifiedDonorCount": { "type": "integer", "example": 14 }
+        }
+      },
+      "BloodRequestListResponse": {
+        "type": "object",
+        "required": ["success", "requests"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "requests": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "bloodType": { "$ref": "#/components/schemas/BloodType" },
+                "quantityNeeded": { "type": "integer" },
+                "isEmergency": { "type": "boolean" },
+                "description": { "type": "string" },
+                "status": { "type": "string", "enum": ["open", "fulfilled", "closed"] },
+                "closesAt": { "type": "string", "format": "date-time" },
+                "notifiedDonorCount": { "type": "integer" },
+                "acceptedCount": { "type": "integer" },
+                "deniedCount": { "type": "integer" },
+                "pendingCount": { "type": "integer" }
+              }
+            }
+          }
+        }
+      },
+      "BloodRequestResponsesSummary": {
+        "type": "object",
+        "required": ["success", "requestStatus", "accepted", "deniedCount", "pendingCount"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "requestStatus": { "type": "string", "example": "open" },
+          "accepted": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string", "example": "Aster Abera" },
+                "gender": { "type": "string", "example": "female" },
+                "bloodType": { "$ref": "#/components/schemas/BloodType" },
+                "phone": { "type": "string", "example": "+251911445566" }
+              }
+            }
+          },
+          "deniedCount": { "type": "integer", "example": 2 },
+          "pendingCount": { "type": "integer", "example": 8 }
+        }
+      },
+      "DonorRegisterRequest": {
+        "type": "object",
+        "required": ["name", "phone", "fin", "gender", "location"],
+        "properties": {
+          "name": { "type": "string", "example": "Aster Abera" },
+          "phone": { "type": "string", "pattern": "^\\+251\\d{9}$", "example": "+251911445566" },
+          "fin": { "type": "string", "example": "ETH-9921-8834-0012" },
+          "gender": { "type": "string", "enum": ["male", "female"], "example": "female" },
+          "bloodType": { "$ref": "#/components/schemas/BloodTypeWithUnknown", "default": "unknown" },
+          "location": {
+            "type": "object",
+            "required": ["lat", "lng"],
+            "properties": {
+              "lat": { "type": "number", "example": 9.0108 },
+              "lng": { "type": "number", "example": 38.7613 }
+            }
+          },
+          "agreedToTerms": { "type": "boolean", "example": true }
+        }
+      },
+      "DonorRegisterResponse": {
+        "type": "object",
+        "required": ["success", "message", "donorId"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Registered. Enter the OTP sent to your phone to verify your account." },
+          "donorId": { "type": "string", "example": "60d8c1112233445566778899" }
+        }
+      },
+      "DonorAuthSuccessResponse": {
+        "type": "object",
+        "required": ["success", "token", "donor"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "token": { "type": "string", "example": "eyJhbGciOiJIUzI1NiIsIn..." },
+          "donor": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string", "example": "Aster Abera" },
+              "phone": { "type": "string", "example": "+251911445566" },
+              "bloodType": { "$ref": "#/components/schemas/BloodTypeWithUnknown" }
+            }
+          }
+        }
+      },
+      "DonorProfileResponse": {
+        "type": "object",
+        "required": ["success", "profile"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "profile": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string", "example": "Aster Abera" },
+              "phone": { "type": "string", "example": "+251911445566" },
+              "fin": { "type": "string", "example": "ETH-9921-8834-0012" },
+              "gender": { "type": "string", "example": "female" },
+              "bloodType": { "$ref": "#/components/schemas/BloodTypeWithUnknown" },
+              "dob": { "type": "string", "format": "date", "nullable": true, "example": "1998-05-14" },
+              "weightKg": { "type": "number", "nullable": true, "example": 68 },
+              "heightCm": { "type": "number", "nullable": true, "example": 169 },
+              "healthNotes": { "type": "string", "example": "Healthy, regular donor" }
+            }
+          }
+        }
+      },
+      "DonorUpdateProfileInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "example": "Aster Abera" },
+          "dob": { "type": "string", "format": "date", "example": "1998-05-14" },
+          "bloodType": { "$ref": "#/components/schemas/BloodTypeWithUnknown" },
+          "weightKg": { "type": "number", "example": 68 },
+          "heightCm": { "type": "number", "example": 169 },
+          "healthNotes": { "type": "string", "example": "No chronic illnesses" }
+        }
+      },
+      "DonorNotificationListResponse": {
+        "type": "object",
+        "required": ["success", "notifications"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "notifications": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "hospitalName": { "type": "string", "example": "St. Paul Hospital" },
+                "bloodType": { "$ref": "#/components/schemas/BloodType" },
+                "quantityNeeded": { "type": "integer", "example": 3 },
+                "isEmergency": { "type": "boolean", "example": true },
+                "description": { "type": "string", "example": "Emergency surgery" },
+                "myResponseStatus": { "type": "string", "enum": ["pending", "accepted", "denied"] },
+                "requestStatus": { "type": "string", "enum": ["open", "closed"] },
+                "notifiedAt": { "type": "string", "format": "date-time" },
+                "closesAt": { "type": "string", "format": "date-time" }
+              }
+            }
+          }
+        }
+      },
+      "DonorRespondResponse": {
+        "type": "object",
+        "required": ["success", "message"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Your response has been recorded." },
+          "nextSteps": {
+            "type": "object",
+            "properties": {
+              "hospitalName": { "type": "string", "example": "St. Paul Hospital" },
+              "hospitalPhone": { "type": "string", "example": "+251911332211" },
+              "hospitalLocation": {
+                "type": "object",
+                "properties": {
+                  "lat": { "type": "number", "example": 9.0305 },
+                  "lng": { "type": "number", "example": 38.7402 }
+                }
+              }
+            }
+          }
+        }
+      },
+      "DonorEventsFeedResponse": {
+        "type": "object",
+        "required": ["success", "events"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "mediaUrl": { "type": "string", "nullable": true },
+                "mediaType": { "type": "string", "enum": ["image", "video", null] },
+                "description": { "type": "string" },
+                "applyLink": { "type": "string", "nullable": true },
+                "closesAt": { "type": "string", "format": "date-time" },
+                "status": { "type": "string", "example": "open" }
+              }
+            }
+          }
+        }
+      },
+      "PendingHospitalsListResponse": {
+        "type": "object",
+        "required": ["success", "hospitals"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "hospitals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "hospitalName": { "type": "string" },
+                "email": { "type": "string", "format": "email" },
+                "phone": { "type": "string" },
+                "licenseNumber": { "type": "string" },
+                "location": {
+                  "type": "object",
+                  "properties": {
+                    "lat": { "type": "number" },
+                    "lng": { "type": "number" }
+                  }
+                },
+                "registeredAt": { "type": "string", "format": "date-time" }
+              }
+            }
+          }
+        }
+      },
+      "FeedbackSubmissionResponse": {
+        "type": "object",
+        "required": ["success", "message", "feedback"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Feedback submitted successfully. Super Admin will review your appeal." },
+          "feedback": { "type": "object" }
+        }
+      },
+      "FeedbackListResponse": {
+        "type": "object",
+        "required": ["success", "feedbacks"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "feedbacks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "_id": { "type": "string" },
+                "email": { "type": "string" },
+                "hospitalName": { "type": "string" },
+                "message": { "type": "string" },
+                "rejectionReason": { "type": "string", "nullable": true },
+                "status": { "type": "string", "enum": ["new", "reviewed", "closed"] },
+                "createdAt": { "type": "string", "format": "date-time" }
+              }
+            }
+          }
+        }
+      },
+      "FeedbackReviewedResponse": {
+        "type": "object",
+        "required": ["success", "message", "feedback"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Feedback marked as reviewed." },
+          "feedback": { "type": "object" }
+        }
+      },
+      "CreateEventInput": {
+        "type": "object",
+        "required": ["description", "closesAt"],
+        "properties": {
+          "mediaUrl": { "type": "string", "example": "https://images.unsplash.com/photo-1615461066841" },
+          "mediaType": { "type": "string", "enum": ["image", "video"], "default": "image" },
+          "description": { "type": "string", "example": "National Blood Donation Festival at Meskel Square" },
+          "applyLink": { "type": "string", "example": "https://legash.org/events/meskel-2026" },
+          "closesAt": { "type": "string", "format": "date-time", "example": "2026-08-30T17:00:00.000Z" }
+        }
+      },
+      "CreateEventResponse": {
+        "type": "object",
+        "required": ["success", "message", "event"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Event posted successfully." },
+          "event": { "type": "object" }
+        }
+      },
+      "AdminEventsListResponse": {
+        "type": "object",
+        "required": ["success", "events"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "events": { "type": "array", "items": { "type": "object" } }
+        }
+      },
+      "CreateAdminInput": {
+        "type": "object",
+        "required": ["name", "email", "permissions"],
+        "properties": {
+          "name": { "type": "string", "example": "EBTBS Officer" },
+          "email": { "type": "string", "format": "email", "example": "officer@legash.org" },
+          "permissions": {
+            "type": "object",
+            "required": ["canApproveHospitals", "canPostEvents"],
+            "properties": {
+              "canApproveHospitals": { "type": "boolean", "example": true },
+              "canPostEvents": { "type": "boolean", "example": false }
+            }
+          }
+        }
+      },
+      "CreateAdminResponse": {
+        "type": "object",
+        "required": ["success", "message", "admin"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Admin account created and setup invitation sent." },
+          "admin": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "email": { "type": "string" },
+              "permissions": { "type": "object" }
+            }
+          }
+        }
+      },
+      "AdminListResponse": {
+        "type": "object",
+        "required": ["success", "admins"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "admins": { "type": "array", "items": { "type": "object" } }
+        }
+      },
+      "SharedLoginResponse": {
+        "type": "object",
+        "required": ["success", "token", "role", "user"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "token": { "type": "string", "example": "eyJhbGciOiJIUzI1NiIsIn..." },
+          "role": { "type": "string", "enum": ["hospital", "superadmin", "admin"], "example": "hospital" },
+          "permissions": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "canApproveHospitals": { "type": "boolean" },
+              "canPostEvents": { "type": "boolean" }
+            }
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "email": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "400BadRequest": {
+        "description": "Validation failure or illegal input",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/StandardError" },
+            "example": { "success": false, "error": "Invalid request parameter or payload structure." }
+          }
+        }
+      },
+      "401Unauthorized": {
+        "description": "Missing, invalid, expired token or unapproved account",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/StandardError" },
+            "example": { "success": false, "error": "Invalid or expired token." }
+          }
+        }
+      },
+      "403Forbidden": {
+        "description": "Missing required permission or role",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/StandardError" },
+            "example": { "success": false, "error": "Forbidden: Missing required permission (canPostEvents)." }
+          }
+        }
+      },
+      "404NotFound": {
+        "description": "Target entity not found",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/StandardError" },
+            "example": { "success": false, "error": "Resource not found." }
+          }
+        }
+      },
+      "409Conflict": {
+        "description": "Duplicate resource (email, phone, or licenseNumber)",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/StandardError" },
+            "example": { "success": false, "error": "A hospital with this license number is already registered." }
+          }
+        }
+      },
+      "429RateLimit": {
+        "description": "Rate limit / cooldown window active",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/StandardError" },
+            "example": { "success": false, "error": "Please wait 60 seconds before requesting a new code." }
+          }
+        }
+      }
+    }
+  }
+}
