@@ -17,8 +17,6 @@ beforeAll(() => {
   app = express();
   app.use(express.json());
   app.use('/api/hospital', hospitalAuthRoutes);
-  app.use('/api/hospitals', hospitalAuthRoutes);
-  app.use('/v1/donor', donorAuthRoutes);
   app.use('/api/donor', donorAuthRoutes);
 });
 
@@ -128,7 +126,7 @@ describe('Hospital Registration, OTP Email Verification & Resend Flow', () => {
   });
 });
 
-describe('POST /v1/donor/resend-otp', () => {
+describe('POST /api/donor/resend-otp', () => {
   it('should return 200 when unverified donor requests a resend', async () => {
     await Donor.create({
       name: 'Yared Tadesse',
@@ -142,7 +140,7 @@ describe('POST /v1/donor/resend-otp', () => {
     });
 
     const res = await request(app)
-      .post('/v1/donor/resend-otp')
+      .post('/api/donor/resend-otp')
       .send({ phone: '+251911234567' });
 
     expect(res.status).toBe(200);
@@ -163,7 +161,7 @@ describe('POST /v1/donor/resend-otp', () => {
     });
 
     const res = await request(app)
-      .post('/v1/donor/resend-otp')
+      .post('/api/donor/resend-otp')
       .send({ phone: '+251911234567' });
 
     expect(res.status).toBe(400);
