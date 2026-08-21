@@ -1,43 +1,27 @@
-// Backend/src/controllers/hospitalAuthController.js
-const Hospital = require('../models/Hospital');
-const { hashPassword } = require('../utils/hashPassword');
-const { sendVerificationEmail } = require('../services/emailService');
+// Backend/src/controllers/donorAuthController.js
+const Donor = require('../models/Donor');
+const { hashPassword, comparePassword } = require('../utils/hashPassword');
+const { sendOtp, verifyOtp } = require('../services/smsService');
+const generateToken = require('../utils/generateToken');
 const generateResetCode = require('../utils/generateResetCode');
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
-exports.registerHospital = async (req, res, next) => {
+exports.registerDonor = async (req, res, next) => {
   try {
-    const { hospitalName, name, email, password, phone, licenseNumber, location, agreedToTerms } = req.body;
-    const finalName = hospitalName || name;
-    const cleanEmail = email ? email.toLowerCase().trim() : '';
+    const { name, phone, fin, gender, bloodType, location, agreedToTerms } = req.body;
 
-    const existingHospital = await Hospital.findOne({
-      $or: [{ email: cleanEmail }, { phone: phone.trim() }, { licenseNumber: licenseNumber.trim() }],
-    });
-
-    if (existingHospital) {
-      if (existingHospital.email === cleanEmail) {
-        return res.status(409).json({
-          success: false,
-          error: 'A hospital with this email is already registered.',
-        });
+    const existing = await Donor.findOne({ $or: [{ phone: phone.trim() }, { fin: fin.trim() }] });
+    if (existing) {
+      if (existing.phone === phone.trim()) {
+        return res.status(409).json({ success: false, error: 'Phone number already registered.' });
       }
-      if (existingHospital.phone === phone.trim()) {
-        return res.status(409).json({
-          success: false,
-          error: 'A hospital with this phone number is already registered.',
-        });
-      }
-      if (existingHospital.licenseNumber === licenseNumber.trim()) {
-        return res.status(409).json({
-          success: false,
-          error: 'A hospital with this license number is already registered.',
-        });
+      if (existing.fin === fin.trim()) {
+        return res.status(409).json({ success: false, error: 'Fayda National ID is already registered.' });
       }
     }
 
-    let coordinates = [38.75, 9.03];
+    let coordinates = [38.7613, 9.0108];
     if (location) {
       if (Array.isArray(location.coordinates) && location.coordinates.length === 2) {
         coordinates = location.coordinates;
@@ -46,134 +30,239 @@ exports.registerHospital = async (req, res, next) => {
       }
     }
 
-    const hashedPassword = await hashPassword(password);
     const { code, expiresAt } = generateResetCode();
 
-    const hospital = new Hospital({
-      hospitalName: finalName.trim(),
-      email: cleanEmail,
-      passwordHash: hashedPassword,
+    const donor = await Donor.create({
+      name: (name || '').trim(),
       phone: phone.trim(),
-      licenseNumber: licenseNumber.trim(),
-      location: {
-        type: 'Point',
-        coordinates,
-        address: location?.address || 'Addis Ababa, Ethiopia',
-      },
+      fin: fin.trim(),
+      gender: gender || 'male',
+      bloodType: bloodType || 'unknown',
+      location: { type: 'Point', coordinates },
       agreedToTerms: agreedToTerms !== undefined ? agreedToTerms : true,
-      emailVerified: false,
-      verificationStatus: 'pending',
-      verificationOtp: code,
-      verificationOtpExpiresAt: expiresAt,
-      verificationOtpLastSentAt: new Date(),
+      phoneVerified: false,
+      pinHash: null,
+      resetCode: code,
+      resetCodeExpiresAt: expiresAt,
+      lastOtpSentAt: new Date(),
     });
 
-    await hospital.save();
-
     try {
-      await sendVerificationEmail(hospital.email, code);
-    } catch (emailErr) {
-      console.warn('⚠️ SMTP Email dispatch error:', emailErr.message);
+      await sendOtp(donor.phone);
+    } catch (err) {
+      console.warn('⚠️ OTP SMS dispatch error:', err.message);
     }
 
     return res.status(201).json({
       success: true,
-      message: 'Registered. Verify your email. Your account will stay pending until Super Admin approves it.',
-      hospitalId: hospital._id.toString(),
+      message: 'Registered. Enter the OTP sent to your phone to verify your account.',
+      donorId: donor._id.toString(),
     });
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    next(err);
   }
 };
 
-exports.verifyEmail = async (req, res, next) => {
+exports.verifyDonorOtp = async (req, res, next) => {
   try {
-    const email = req.body.email || req.query.email;
-    const code = req.body.code || req.body.token || req.query.token;
-
-    if (!email || !code) {
-      return res.status(400).json({
-        success: false,
-        error: 'Email and verification code are required.',
-      });
+    const { phone, code } = req.body;
+    const isValid = await verifyOtp(phone.trim(), code.trim());
+    if (!isValid) {
+      return res.status(400).json({ success: false, error: 'Invalid or expired code.' });
     }
 
-    const cleanEmail = email.toLowerCase().trim();
-    const hospital = await Hospital.findOne({ email: cleanEmail });
+    await Donor.updateOne({ phone: phone.trim() }, { phoneVerified: true });
 
-    if (!hospital) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid or expired verification code.',
-      });
+    return res.status(200).json({
+      success: true,
+      message: 'Phone verified. Set your PIN to continue.',
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.resendDonorOtp = async (req, res, next) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) {
+      return res.status(400).json({ success: false, error: 'Phone number is required.' });
     }
 
+    const donor = await Donor.findOne({ phone: phone.trim() });
+    if (!donor) {
+      return res.status(404).json({ success: false, error: 'Donor not found.' });
+    }
+
+    if (donor.phoneVerified) {
+      return res.status(400).json({ success: false, error: 'Phone number is already verified.' });
+    }
+
+    const now = new Date();
     if (
-      hospital.verificationOtp !== code.trim() ||
-      !hospital.verificationOtpExpiresAt ||
-      hospital.verificationOtpExpiresAt < new Date()
+      donor.lastOtpSentAt &&
+      (now.getTime() - new Date(donor.lastOtpSentAt).getTime()) / 1000 < RESEND_COOLDOWN_SECONDS
     ) {
-      return res.status(400).json({
+      return res.status(429).json({
         success: false,
-        error: 'Invalid or expired verification code.',
+        error: `Please wait ${RESEND_COOLDOWN_SECONDS} seconds before requesting a new OTP.`,
       });
     }
 
-    // Explicitly keep verificationStatus = 'pending'
-    hospital.emailVerified = true;
-    hospital.verificationOtp = null;
-    hospital.verificationOtpExpiresAt = null;
-    await hospital.save();
+    donor.lastOtpSentAt = now;
+    await donor.save();
+
+    try {
+      await sendOtp(donor.phone);
+    } catch (err) {
+      console.warn('⚠️ OTP SMS dispatch error:', err.message);
+    }
 
     return res.status(200).json({
       success: true,
-      message: 'Email verified. Go to login page.',
+      message: 'If an account exists with that phone number, an OTP has been sent.',
     });
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    next(err);
   }
 };
 
-exports.resendEmailCode = async (req, res, next) => {
+exports.setDonorPin = async (req, res, next) => {
   try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ success: false, error: 'Email is required.' });
+    const { phone, pin, confirmPin } = req.body;
+
+    if (pin !== confirmPin) {
+      return res.status(400).json({ success: false, error: 'PIN confirmation does not match.' });
     }
 
-    const cleanEmail = email.toLowerCase().trim();
-    const hospital = await Hospital.findOne({ email: cleanEmail });
+    const donor = await Donor.findOne({ phone: phone.trim() });
+    if (!donor) {
+      return res.status(404).json({ success: false, error: 'Donor not found.' });
+    }
 
-    if (hospital && !hospital.emailVerified) {
-      const now = new Date();
-      if (
-        hospital.verificationOtpLastSentAt &&
-        (now.getTime() - new Date(hospital.verificationOtpLastSentAt).getTime()) / 1000 < RESEND_COOLDOWN_SECONDS
-      ) {
-        return res.status(429).json({
-          success: false,
-          error: `Please wait ${RESEND_COOLDOWN_SECONDS} seconds before requesting a new code.`,
-        });
-      }
+    if (!donor.phoneVerified) {
+      return res.status(400).json({ success: false, error: 'Please verify your phone number first.' });
+    }
 
+    donor.pinHash = await hashPassword(pin);
+    donor.pinSetAt = new Date();
+    await donor.save();
+
+    const token = generateToken({ id: donor._id.toString(), role: 'donor' });
+
+    return res.status(200).json({
+      success: true,
+      token,
+      donor: {
+        id: donor._id.toString(),
+        name: donor.name,
+        phone: donor.phone,
+        bloodType: donor.bloodType,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.unlockDonor = async (req, res, next) => {
+  try {
+    const { pin } = req.body;
+    const donor = await Donor.findById(req.user.id);
+
+    if (!donor || donor.isDeleted) {
+      return res.status(404).json({ success: false, error: 'Donor account not found.' });
+    }
+
+    if (!donor.pinHash) {
+      return res.status(400).json({ success: false, error: 'PIN has not been set for this account.' });
+    }
+
+    const isValid = await comparePassword(pin, donor.pinHash);
+    if (!isValid) {
+      return res.status(401).json({ success: false, error: 'Invalid PIN.' });
+    }
+
+    const freshToken = generateToken({ id: donor._id.toString(), role: 'donor' });
+
+    return res.status(200).json({
+      success: true,
+      token: freshToken,
+      donor: {
+        id: donor._id.toString(),
+        name: donor.name,
+        phone: donor.phone,
+        bloodType: donor.bloodType,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.forgotDonorPin = async (req, res, next) => {
+  try {
+    const { phone } = req.body;
+    const donor = await Donor.findOne({ phone: phone.trim() });
+    if (donor) {
       const { code, expiresAt } = generateResetCode();
-      hospital.verificationOtp = code;
-      hospital.verificationOtpExpiresAt = expiresAt;
-      hospital.verificationOtpLastSentAt = now;
-      await hospital.save();
-
+      donor.resetCode = code;
+      donor.resetCodeExpiresAt = expiresAt;
+      await donor.save();
       try {
-        await sendVerificationEmail(hospital.email, code);
+        await sendOtp(donor.phone);
       } catch (err) {
-        console.warn('⚠️ SMTP Email dispatch error:', err.message);
+        console.warn('⚠️ OTP SMS dispatch error:', err.message);
       }
     }
 
     return res.status(200).json({
       success: true,
-      message: 'If an unverified account exists with that email, a new code has been sent.',
+      message: 'If an account exists with that phone number, an OTP has been sent.',
     });
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.resetDonorPin = async (req, res, next) => {
+  try {
+    const { phone, code, pin, confirmPin } = req.body;
+
+    if (pin !== confirmPin) {
+      return res.status(400).json({ success: false, error: 'PIN confirmation does not match.' });
+    }
+
+    const isValid = await verifyOtp(phone.trim(), code.trim());
+    if (!isValid) {
+      return res.status(400).json({ success: false, error: 'Invalid or expired code.' });
+    }
+
+    const donor = await Donor.findOne({ phone: phone.trim() });
+    if (!donor) {
+      return res.status(404).json({ success: false, error: 'Donor not found.' });
+    }
+
+    donor.pinHash = await hashPassword(pin);
+    donor.pinSetAt = new Date();
+    donor.resetCode = null;
+    donor.resetCodeExpiresAt = null;
+    await donor.save();
+
+    const token = generateToken({ id: donor._id.toString(), role: 'donor' });
+
+    return res.status(200).json({
+      success: true,
+      message: 'PIN reset successful.',
+      token,
+      donor: {
+        id: donor._id.toString(),
+        name: donor.name,
+        phone: donor.phone,
+        bloodType: donor.bloodType,
+      },
+    });
+  } catch (err) {
+    next(err);
   }
 };

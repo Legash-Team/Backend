@@ -88,6 +88,7 @@ describe('Blood Request Lifecycle Integration', () => {
       .send({
         bloodType: 'O+',
         quantityNeeded: 2,
+        closesAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
       });
 
     expect(res.status).toBe(201);
