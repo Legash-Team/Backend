@@ -8,15 +8,6 @@ const { sendBloodAlertSms } = require('../services/smsService');
 const { DEFAULT_SEARCH_RADIUS_KM } = require('../utils/constants');
 const { getCompatibleDonorTypes, isBloodTypeKnown } = require('../utils/bloodCompatibility');
 
-// Helper to auto-expire open blood requests that have passed closesAt
-async function expirePastRequests(filter = {}) {
-  const now = new Date();
-  await BloodRequest.updateMany(
-    { ...filter, status: 'open', closesAt: { $lte: now } },
-    { status: 'closed', closedReason: 'expired', closedAt: now }
-  );
-}
-
 exports.create = async (req, res, next) => {
   try {
     const { bloodType, quantityNeeded, isEmergency = false, description = '', closesAt } = req.body;
@@ -92,9 +83,6 @@ exports.create = async (req, res, next) => {
 
 exports.list = async (req, res, next) => {
   try {
-    // Automatically close past requests before querying
-    await expirePastRequests({ hospital: req.user.id });
-
     const { urgency, status } = req.query;
     const filter = { hospital: req.user.id };
 
@@ -150,8 +138,6 @@ exports.list = async (req, res, next) => {
 
 exports.getResponses = async (req, res, next) => {
   try {
-    await expirePastRequests({ hospital: req.user.id });
-
     const request = await BloodRequest.findById(req.params.id);
     if (!request || request.hospital.toString() !== req.user.id) {
       return res.status(404).json({ success: false, error: 'Request not found.' });
