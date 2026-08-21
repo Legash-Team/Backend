@@ -1,38 +1,59 @@
-const BloodRequestResponse = require('../models/BloodRequestResponse');
+// Backend/src/controllers/donorNotificationController.js
 const BloodRequest = require('../models/BloodRequest');
+const BloodRequestResponse = require('../models/BloodRequestResponse');
 const Donor = require('../models/Donor');
+
+// Helper to auto-expire open blood requests that have passed closesAt
+async function expirePastBloodRequests() {
+  const now = new Date();
+  await BloodRequest.updateMany(
+    { status: 'open', closesAt: { $lte: now } },
+    { status: 'closed', closedReason: 'expired', closedAt: now }
+  );
+}
 
 exports.list = async (req, res, next) => {
   try {
+    // Auto-expire requests past closesAt
+    await expirePastBloodRequests();
+
     const filter = { donor: req.user.id };
+
     if (req.query.status) {
-      filter.status = req.query.status;
+      if (req.query.status === 'ongoing' || req.query.status === 'pending') {
+        filter.status = 'pending';
+      } else if (req.query.status === 'accepted' || req.query.status === 'denied') {
+        filter.status = req.query.status;
+      }
     }
 
     const responses = await BloodRequestResponse.find(filter)
-      .sort({ notifiedAt: -1 })
+      .sort({ notifiedAt: -1, createdAt: -1 })
       .populate({
         path: 'bloodRequest',
         populate: {
           path: 'hospital',
-          select: 'hospitalName'
-        }
+          select: 'hospitalName phone location',
+        },
       });
 
-    const notifications = responses.map(r => {
+    const notifications = responses.map((r) => {
       const parentReq = r.bloodRequest;
       return {
         id: r._id,
-        hospitalName: parentReq && parentReq.hospital ? parentReq.hospital.hospitalName : 'Unknown Hospital',
-        bloodType: parentReq ? parentReq.bloodType : 'Unknown',
-        quantityNeeded: parentReq ? parentReq.quantityNeeded : 0,
+        hospitalName: parentReq?.hospital?.hospitalName || 'Unknown Hospital',
+        bloodType: parentReq?.bloodType || 'Unknown',
+        quantityNeeded: parentReq?.quantityNeeded || 0,
+        isEmergency: parentReq?.isEmergency || false,
+        description: parentReq?.description || '',
         myResponseStatus: r.status,
-        requestStatus: parentReq ? parentReq.status : 'closed',
-        notifiedAt: r.notifiedAt
+        requestStatus: parentReq?.status || 'closed',
+        notifiedAt: r.notifiedAt,
+        closesAt: parentReq?.closesAt || null,
       };
     });
 
-    res.status(200).json({ success: true, notifications });
+    return res.status(200).json({ success: true, notifications });
   } catch (error) {
     next(error);
   }
@@ -45,13 +66,28 @@ exports.respond = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'Response must be accepted or denied.' });
     }
 
-    const responseDoc = await BloodRequestResponse.findById(req.params.id).populate('bloodRequest');
-    
+    const responseDoc = await BloodRequestResponse.findById(req.params.id).populate({
+      path: 'bloodRequest',
+      populate: {
+        path: 'hospital',
+        select: 'hospitalName phone location',
+      },
+    });
+
     if (!responseDoc || responseDoc.donor.toString() !== req.user.id) {
       return res.status(404).json({ success: false, error: 'Notification not found.' });
     }
 
-    if (!responseDoc.bloodRequest || responseDoc.bloodRequest.status === 'closed') {
+    const parentReq = responseDoc.bloodRequest;
+
+    // Check if request is closed or has passed closesAt
+    if (!parentReq || parentReq.status === 'closed' || new Date(parentReq.closesAt) <= new Date()) {
+      if (parentReq && parentReq.status === 'open') {
+        parentReq.status = 'closed';
+        parentReq.closedReason = 'expired';
+        parentReq.closedAt = new Date();
+        await parentReq.save();
+      }
       return res.status(400).json({ success: false, error: 'This request has already closed.' });
     }
 
@@ -63,7 +99,22 @@ exports.respond = async (req, res, next) => {
     responseDoc.respondedAt = new Date();
     await responseDoc.save();
 
-    res.status(200).json({ success: true, message: 'Your response has been recorded.' });
+    const hospital = parentReq.hospital;
+    const lat = hospital?.location?.coordinates?.[1] ?? null;
+    const lng = hospital?.location?.coordinates?.[0] ?? null;
+
+    return res.status(200).json({
+      success: true,
+      message: 'Your response has been recorded.',
+      nextSteps:
+        response === 'accepted'
+          ? {
+              hospitalName: hospital?.hospitalName || 'Hospital',
+              hospitalPhone: hospital?.phone || '',
+              hospitalLocation: { lat, lng },
+            }
+          : undefined,
+    });
   } catch (error) {
     next(error);
   }
@@ -78,7 +129,7 @@ exports.registerPushToken = async (req, res, next) => {
 
     await Donor.findByIdAndUpdate(req.user.id, { pushToken });
 
-    res.status(200).json({ success: true, message: 'Push notifications enabled.' });
+    return res.status(200).json({ success: true, message: 'Push notifications enabled.' });
   } catch (error) {
     next(error);
   }
