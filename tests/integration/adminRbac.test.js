@@ -1,6 +1,7 @@
 const request = require('supertest');
 const express = require('express');
 const superAdminRoutes = require('../../src/routes/superAdminRoutes');
+const sharedAuthRoutes = require('../../src/routes/sharedAuthRoutes');
 const errorHandler = require('../../src/middleware/errorHandler');
 const verifyToken = require('../../src/middleware/authMiddleware');
 const requirePermission = require('../../src/middleware/requirePermission');
@@ -12,8 +13,9 @@ const { hashPassword } = require('../../src/utils/hashPassword');
 const app = express();
 app.use(express.json());
 app.use('/api/superadmin', superAdminRoutes);
+app.use('/api/auth', sharedAuthRoutes);
 
-// Test routes to verify requirePermission middleware behavior in action
+// Test route to verify requirePermission middleware groundwork
 app.get(
   '/api/test/approve-hospital-action',
   verifyToken,
@@ -30,7 +32,7 @@ app.get(
 
 app.use(errorHandler);
 
-describe('Integration Tests: Admin Creation, Listing, OTP Verification & RBAC', () => {
+describe('Integration Tests: Admin Creation, OTP Verification & RBAC Boundary', () => {
   let superAdminToken;
   let superAdminUser;
 
@@ -42,12 +44,12 @@ describe('Integration Tests: Admin Creation, Listing, OTP Verification & RBAC', 
     superAdminUser = await SuperAdmin.create({
       name: 'Root SuperAdmin',
       email: 'root@legash.org',
-      passwordHash
+      passwordHash,
     });
 
     superAdminToken = generateToken({
       id: superAdminUser._id.toString(),
-      role: 'superadmin'
+      role: 'superadmin',
     });
   });
 
@@ -61,8 +63,8 @@ describe('Integration Tests: Admin Creation, Listing, OTP Verification & RBAC', 
           email: 'approver@legash.org',
           permissions: {
             canApproveHospitals: true,
-            canPostEvents: false
-          }
+            canPostEvents: false,
+          },
         });
 
       expect(res.statusCode).toBe(201);
@@ -73,8 +75,8 @@ describe('Integration Tests: Admin Creation, Listing, OTP Verification & RBAC', 
         emailVerified: false,
         permissions: {
           canApproveHospitals: true,
-          canPostEvents: false
-        }
+          canPostEvents: false,
+        },
       });
 
       const savedAdmin = await Admin.findOne({ email: 'approver@legash.org' });
@@ -90,7 +92,7 @@ describe('Integration Tests: Admin Creation, Listing, OTP Verification & RBAC', 
         .post('/api/superadmin/admins')
         .send({
           name: 'Unauthorized Admin',
-          email: 'unauthorized@legash.org'
+          email: 'unauthorized@legash.org',
         });
       expect(resNoToken.statusCode).toBe(401);
 
@@ -99,7 +101,7 @@ describe('Integration Tests: Admin Creation, Listing, OTP Verification & RBAC', 
         .set('Authorization', `Bearer ${hospitalToken}`)
         .send({
           name: 'Unauthorized Admin',
-          email: 'unauthorized@legash.org'
+          email: 'unauthorized@legash.org',
         });
       expect(resWrongRole.statusCode).toBe(403);
     });
@@ -111,13 +113,13 @@ describe('Integration Tests: Admin Creation, Listing, OTP Verification & RBAC', 
         name: 'Admin Alpha',
         email: 'alpha@legash.org',
         verificationOtp: '123456',
-        permissions: { canApproveHospitals: true, canPostEvents: false }
+        permissions: { canApproveHospitals: true, canPostEvents: false },
       });
       await Admin.create({
         name: 'Admin Beta',
         email: 'beta@legash.org',
         verificationOtp: '654321',
-        permissions: { canApproveHospitals: false, canPostEvents: true }
+        permissions: { canApproveHospitals: false, canPostEvents: true },
       });
 
       const res = await request(app)
@@ -143,14 +145,14 @@ describe('Integration Tests: Admin Creation, Listing, OTP Verification & RBAC', 
         email: 'pending@legash.org',
         verificationOtp: '849201',
         verificationOtpExpiresAt: new Date(Date.now() + 15 * 60 * 1000),
-        emailVerified: false
+        emailVerified: false,
       });
 
       const res = await request(app)
         .post('/api/superadmin/admins/verify-otp')
         .send({
           email: 'pending@legash.org',
-          otp: '849201'
+          otp: '849201',
         });
 
       expect(res.statusCode).toBe(200);
@@ -168,14 +170,34 @@ describe('Integration Tests: Admin Creation, Listing, OTP Verification & RBAC', 
         email: 'pending2@legash.org',
         verificationOtp: '849201',
         verificationOtpExpiresAt: new Date(Date.now() + 15 * 60 * 1000),
-        emailVerified: false
+        emailVerified: false,
       });
 
       const res = await request(app)
         .post('/api/superadmin/admins/verify-otp')
         .send({
           email: 'pending2@legash.org',
-          otp: '000000'
+          otp: '000000',
+        });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    test('Rejects expired OTP with 400', async () => {
+      await Admin.create({
+        name: 'Pending Admin Expired',
+        email: 'expired@legash.org',
+        verificationOtp: '849201',
+        verificationOtpExpiresAt: new Date(Date.now() - 1000),
+        emailVerified: false,
+      });
+
+      const res = await request(app)
+        .post('/api/superadmin/admins/verify-otp')
+        .send({
+          email: 'expired@legash.org',
+          otp: '849201',
         });
 
       expect(res.statusCode).toBe(400);
@@ -183,7 +205,30 @@ describe('Integration Tests: Admin Creation, Listing, OTP Verification & RBAC', 
     });
   });
 
-  describe('RBAC Middleware (requirePermission) verification', () => {
+  describe('Explicit "No Admin Login Yet" Boundary Test', () => {
+    test('Attempting /api/auth/login with Admin email is rejected (401)', async () => {
+      await Admin.create({
+        name: 'Verified Admin User',
+        email: 'admin.user@legash.org',
+        emailVerified: true,
+        passwordHash: await hashPassword('AdminPass123!'),
+        permissions: { canApproveHospitals: true, canPostEvents: true },
+      });
+
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: 'admin.user@legash.org',
+          password: 'AdminPass123!',
+        });
+
+      expect(res.statusCode).toBe(401);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toBe('Invalid email or password.');
+    });
+  });
+
+  describe('RBAC Middleware (requirePermission) groundwork verification', () => {
     test('Super Admin is permitted on any permission-gated route', async () => {
       const res = await request(app)
         .get('/api/test/approve-hospital-action')
@@ -200,14 +245,14 @@ describe('Integration Tests: Admin Creation, Listing, OTP Verification & RBAC', 
         emailVerified: true,
         permissions: {
           canApproveHospitals: true,
-          canPostEvents: false
-        }
+          canPostEvents: false,
+        },
       });
 
       const adminToken = generateToken({
         id: admin._id.toString(),
         role: 'admin',
-        permissions: admin.permissions
+        permissions: admin.permissions,
       });
 
       const resAllowed = await request(app)

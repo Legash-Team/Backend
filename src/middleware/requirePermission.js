@@ -1,7 +1,7 @@
 const Admin = require('../models/Admin');
 
 /**
- * Middleware to enforce role-based permissions.
+ * Middleware to enforce role-based permissions groundwork.
  * Super Admin bypasses all permission checks.
  * Admins must have the specific boolean permission flag set to true.
  *
@@ -12,7 +12,7 @@ const requirePermission = (permissionName) => async (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({
         success: false,
-        error: 'Authentication required.'
+        error: 'Authentication required.',
       });
     }
 
@@ -25,7 +25,7 @@ const requirePermission = (permissionName) => async (req, res, next) => {
     if (req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        error: 'You do not have permission to access this.'
+        error: 'You do not have permission to access this.',
       });
     }
 
@@ -39,7 +39,7 @@ const requirePermission = (permissionName) => async (req, res, next) => {
     if (!admin || !admin.permissions || !admin.permissions[permissionName]) {
       return res.status(403).json({
         success: false,
-        error: 'You do not have permission to perform this action.'
+        error: 'You do not have permission to perform this action.',
       });
     }
 

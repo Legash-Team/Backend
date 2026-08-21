@@ -173,7 +173,10 @@ describe('Super Admin Controller Unit Tests', () => {
 
       const sendApprovalEmailSpy = jest.spyOn(emailService, 'sendApprovalEmail').mockResolvedValue();
 
-      const req = { params: { id: hospital._id.toString() } };
+      const req = {
+        params: { id: hospital._id.toString() },
+        body: { rejectionReason: 'Does not meet requirements' }
+      };
       const res = mockResponse();
       const next = jest.fn();
 
@@ -205,7 +208,10 @@ describe('Super Admin Controller Unit Tests', () => {
         agreedToTerms: true
       });
 
-      const req = { params: { id: hospital._id.toString() } };
+      const req = {
+        params: { id: hospital._id.toString() },
+        body: { rejectionReason: 'Does not meet requirements' }
+      };
       const res = mockResponse();
       const next = jest.fn();
 
@@ -250,7 +256,10 @@ describe('Super Admin Controller Unit Tests', () => {
 
       const sendRejectionEmailSpy = jest.spyOn(emailService, 'sendRejectionEmail').mockResolvedValue();
 
-      const req = { params: { id: hospital._id.toString() } };
+      const req = {
+        params: { id: hospital._id.toString() },
+        body: { reason: 'Does not meet requirements' }
+      };
       const res = mockResponse();
       const next = jest.fn();
 
@@ -264,10 +273,45 @@ describe('Super Admin Controller Unit Tests', () => {
 
       const updatedHospital = await Hospital.findById(hospital._id);
       expect(updatedHospital.verificationStatus).toBe('rejected');
+      expect(updatedHospital.rejectionReason).toBe('Does not meet requirements');
 
       expect(sendRejectionEmailSpy).toHaveBeenCalledTimes(1);
-      expect(sendRejectionEmailSpy).toHaveBeenCalledWith(hospital.email);
+      expect(sendRejectionEmailSpy).toHaveBeenCalledWith(hospital.email, 'Does not meet requirements');
 
+      sendRejectionEmailSpy.mockRestore();
+    });
+
+    it('returns 400 if rejection reason is missing for a pending hospital', async () => {
+      const hospital = await Hospital.create({
+        hospitalName: 'Pending Hospital No Reason',
+        licenseNumber: 'LIC-3001-NR',
+        phone: '+251933333335',
+        email: 'pending-noreason@example.com',
+        passwordHash: 'hashed_pw',
+        location: { type: 'Point', coordinates: [38.74, 9.03] },
+        emailVerified: true,
+        verificationStatus: 'pending',
+        agreedToTerms: true
+      });
+
+      const sendRejectionEmailSpy = jest.spyOn(emailService, 'sendRejectionEmail').mockResolvedValue();
+
+      const req = {
+        params: { id: hospital._id.toString() },
+        body: {}
+      };
+      const res = mockResponse();
+      const next = jest.fn();
+
+      await superAdminController.rejectHospital(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.body).toEqual({
+        success: false,
+        error: 'A rejection reason is required.'
+      });
+
+      expect(sendRejectionEmailSpy).not.toHaveBeenCalled();
       sendRejectionEmailSpy.mockRestore();
     });
 
@@ -286,7 +330,10 @@ describe('Super Admin Controller Unit Tests', () => {
 
       const sendRejectionEmailSpy = jest.spyOn(emailService, 'sendRejectionEmail').mockResolvedValue();
 
-      const req = { params: { id: hospital._id.toString() } };
+      const req = {
+        params: { id: hospital._id.toString() },
+        body: { rejectionReason: 'Does not meet requirements' }
+      };
       const res = mockResponse();
       const next = jest.fn();
 
@@ -315,7 +362,28 @@ describe('Super Admin Controller Unit Tests', () => {
         agreedToTerms: true
       });
 
-      const req = { params: { id: hospital._id.toString() } };
+      const req = {
+        params: { id: hospital._id.toString() },
+        body: { rejectionReason: 'Does not meet requirements' }
+      };
+      const res = mockResponse();
+      const next = jest.fn();
+
+      await superAdminController.rejectHospital(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.body).toEqual({
+        success: false,
+        error: 'This hospital is not pending approval.'
+      });
+    });
+
+    it('returns 400 on non-existent hospital id', async () => {
+      const nonExistentId = new mongoose.Types.ObjectId().toString();
+      const req = {
+        params: { id: nonExistentId },
+        body: { rejectionReason: 'Does not meet requirements' }
+      };
       const res = mockResponse();
       const next = jest.fn();
 
@@ -357,7 +425,6 @@ describe('Super Admin Controller Unit Tests', () => {
       expect(res.body.admin.permissions.canApproveHospitals).toBe(true);
       expect(res.body.admin.permissions.canPostEvents).toBe(false);
 
-      // Verify DB record
       const dbAdmin = await Admin.findOne({ email: 'abebe.admin@example.com' });
       expect(dbAdmin).toBeDefined();
       expect(dbAdmin.verificationOtp).toHaveLength(6);
@@ -672,7 +739,7 @@ describe('Super Admin Controller Unit Tests', () => {
     it('executes sendApprovalEmail, sendRejectionEmail, and sendAdminVerificationOtp in dev mock mode without error', async () => {
       process.env.EMAIL_USER = 'mock@example.com';
       await expect(emailService.sendApprovalEmail('hospital@example.com')).resolves.not.toThrow();
-      await expect(emailService.sendRejectionEmail('hospital@example.com')).resolves.not.toThrow();
+      await expect(emailService.sendRejectionEmail('hospital@example.com', 'Reason here')).resolves.not.toThrow();
       await expect(emailService.sendAdminVerificationOtp('admin@example.com', '123456')).resolves.not.toThrow();
     });
   });
