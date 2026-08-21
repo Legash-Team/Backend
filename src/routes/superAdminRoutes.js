@@ -171,16 +171,82 @@ router.get('/admins', verifyToken, requireRole('superadmin'), superAdminControll
  *         description: Invalid or expired OTP
  */
 router.post('/admins/verify-otp', superAdminController.verifyAdminOtp);
-router.post('/verify-admin-otp', superAdminController.verifyAdminOtp);
 
 /**
- * Feedback Management
+ * @swagger
+ * /superadmin/feedbacks:
+ *   get:
+ *     summary: List all hospital appeal feedbacks
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of feedbacks
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (Super Admin only)
  */
 router.get('/feedbacks', verifyToken, requireRole('superadmin'), superAdminController.listFeedbacks);
-router.patch('/feedbacks/:id/review', verifyToken, requireRole('superadmin'), superAdminController.markFeedbackReviewed);
 
 /**
- * Event Management
+ * @swagger
+ * /superadmin/feedbacks/{id}/reviewed:
+ *   patch:
+ *     summary: Mark a feedback as reviewed
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Feedback marked as reviewed
+ *       404:
+ *         description: Feedback not found
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (Super Admin only)
+ */
+router.patch('/feedbacks/:id/reviewed', verifyToken, requireRole('superadmin'), superAdminController.markFeedbackReviewed);
+
+/**
+ * @swagger
+ * /superadmin/events:
+ *   post:
+ *     summary: Create an event
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [description, closesAt]
+ *             properties:
+ *               mediaUrl: { type: string }
+ *               mediaType: { type: string, enum: [image, video] }
+ *               description: { type: string }
+ *               applyLink: { type: string }
+ *               closesAt: { type: string, format: date-time }
+ *     responses:
+ *       201:
+ *         description: Event created successfully
+ *   get:
+ *     summary: List all events for admin view
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of events
  */
 router.post('/events', verifyToken, requireRole('superadmin'), superAdminController.createEvent);
 router.get('/events', verifyToken, requireRole('superadmin'), superAdminController.listAdminEvents);

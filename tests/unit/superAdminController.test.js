@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const Hospital = require('../../src/models/Hospital');
 const Admin = require('../../src/models/Admin');
+const Feedback = require('../../src/models/Feedback');
+const Event = require('../../src/models/Event');
 const superAdminController = require('../../src/controllers/superAdminController');
 const emailService = require('../../src/services/emailService');
 const requirePermission = require('../../src/middleware/requirePermission');
@@ -735,6 +737,70 @@ describe('Super Admin Controller Unit Tests', () => {
 
       expect(res.status).toHaveBeenCalledWith(401);
       expect(next).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Feedback Management', () => {
+    it('lists all feedbacks sorted by createdAt descending', async () => {
+      await Feedback.deleteMany({});
+      await Feedback.create({
+        email: 'hospital1@example.com',
+        hospitalName: 'Hospital 1',
+        message: 'First feedback',
+        status: 'new',
+      });
+      await Feedback.create({
+        email: 'hospital2@example.com',
+        hospitalName: 'Hospital 2',
+        message: 'Second feedback',
+        status: 'reviewed',
+      });
+
+      const req = {};
+      const res = mockResponse();
+      const next = jest.fn();
+
+      await superAdminController.listFeedbacks(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.feedbacks).toHaveLength(2);
+    });
+
+    it('marks a feedback as reviewed (/reviewed path handler)', async () => {
+      const feedback = await Feedback.create({
+        email: 'hospital@example.com',
+        hospitalName: 'Hospital Review Test',
+        message: 'Please review our registration appeal',
+        status: 'new',
+      });
+
+      const req = { params: { id: feedback._id.toString() } };
+      const res = mockResponse();
+      const next = jest.fn();
+
+      await superAdminController.markFeedbackReviewed(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toBe('Feedback marked as reviewed.');
+      expect(res.body.feedback.status).toBe('reviewed');
+
+      const updated = await Feedback.findById(feedback._id);
+      expect(updated.status).toBe('reviewed');
+    });
+
+    it('returns 404 for non-existent feedback id', async () => {
+      const nonExistentId = new mongoose.Types.ObjectId().toString();
+      const req = { params: { id: nonExistentId } };
+      const res = mockResponse();
+      const next = jest.fn();
+
+      await superAdminController.markFeedbackReviewed(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toBe('Feedback not found.');
     });
   });
 

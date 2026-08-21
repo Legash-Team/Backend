@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const Hospital = require('../models/Hospital');
 const Event = require('../models/Event');
 const Admin = require('../models/Admin');
+const Feedback = require('../models/Feedback');
 const emailService = require('../services/emailService');
 const generateResetCode = require('../utils/generateResetCode');
 const { hashPassword } = require('../utils/hashPassword');
@@ -129,8 +130,7 @@ exports.rejectHospital = async (req, res, next) => {
 
 exports.listFeedbacks = async (req, res, next) => {
   try {
-    const FeedbackModel = mongoose.models.Feedback || Event;
-    const feedbacks = await FeedbackModel.find().sort({ createdAt: -1 });
+    const feedbacks = await Feedback.find().sort({ createdAt: -1 });
     return res.status(200).json({
       success: true,
       feedbacks,
@@ -147,8 +147,7 @@ exports.markFeedbackReviewed = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Feedback not found.' });
     }
 
-    const FeedbackModel = mongoose.models.Feedback || Event;
-    const feedback = await FeedbackModel.findByIdAndUpdate(id, { status: 'reviewed' }, { new: true });
+    const feedback = await Feedback.findByIdAndUpdate(id, { status: 'reviewed' }, { new: true });
     if (!feedback) {
       return res.status(404).json({ success: false, error: 'Feedback not found.' });
     }
