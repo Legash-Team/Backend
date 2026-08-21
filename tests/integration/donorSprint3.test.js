@@ -133,7 +133,6 @@ describe('Sprint 3 Donor Full Lifecycle & Security Contract', () => {
     expect(centersRes.status).toBe(200);
     expect(centersRes.body.centers).toEqual([]);
 
-    /* Commented out for branch #63 (this will be enabled in #64)
     // 8. Respond to request and verify nextSteps payload
     const hospital = await Hospital.create({
       hospitalName: 'St. Paul Hospital',
@@ -173,7 +172,6 @@ describe('Sprint 3 Donor Full Lifecycle & Security Contract', () => {
     expect(respondRes.body.nextSteps.hospitalPhone).toBe('+251911999999');
     expect(respondRes.body.nextSteps.hospitalLocation.lat).toBe(9.0108);
     expect(respondRes.body.nextSteps.hospitalLocation.lng).toBe(38.7613);
-    */
   });
 
   it('Proves one donor\'s token can never unlock another\'s account with a shared PIN', async () => {
