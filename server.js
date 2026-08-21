@@ -21,6 +21,9 @@ for (const envPath of envPaths) {
 
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const mongoSanitize = require('express-mongo-sanitize');
+const rateLimit = require('express-rate-limit');
 const swaggerUi = require('swagger-ui-express');
 const connectDB = require('./src/config/db');
 const errorHandler = require('./src/middleware/errorHandler');
@@ -46,8 +49,62 @@ const { startAutoCloseJob } = require('./src/jobs/autoCloseBloodRequests');
 
 const app = express();
 
-app.use(cors());
+// Secure HTTP response headers (configured to allow Swagger UI scripts/styles)
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "https://res.cloudinary.com"],
+      },
+    },
+  })
+);
+
+// Secure CORS origins in production (dynamically resolved on each request)
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      const allowedOrigins = process.env.ALLOWED_ORIGINS
+        ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
+        : [];
+      if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Blocked by CORS origin restriction.'));
+      }
+    },
+    credentials: true,
+  })
+);
+
 app.use(express.json());
+
+// Prevent NoSQL query injection
+app.use(mongoSanitize());
+
+// API Rate Limiting for sensitive authentication/registration routes
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // Limit each IP to 20 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Too many authentication attempts from this IP, please try again after 15 minutes.',
+  },
+  skip: () => process.env.NODE_ENV === 'test',
+});
+
+app.use('/api/auth/login', authLimiter);
+app.use('/api/hospital/register', authLimiter);
+app.use('/api/donor/register', authLimiter);
+app.use('/api/donor/unlock', authLimiter);
+app.use('/api/donor/verify-otp', authLimiter);
+app.use('/api/hospital/verify-email', authLimiter);
 
 // Serve raw OpenAPI 3.1.0 specification
 const openapiSpecPath = path.resolve(__dirname, 'openapi.json');
