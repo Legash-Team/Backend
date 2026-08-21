@@ -34,17 +34,39 @@ router.post('/register', hospitalValidators.register, validateRequest, hospitalA
 /**
  * @swagger
  * /hospital/verify-email:
- *   get:
- *     summary: Verify hospital email via link
+ *   post:
+ *     summary: Verify hospital email via OTP
  *     tags: [Hospitals]
- *     parameters:
- *       - in: query
- *         name: token
- *         required: true
- *         schema:
- *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, code]
+ *             properties:
+ *               email: { type: string }
+ *               code: { type: string }
  */
+router.post('/verify-email', hospitalAuthController.verifyEmail);
 router.get('/verify-email', hospitalAuthController.verifyEmail);
-router.get('/verify-email/:hospitalId', hospitalAuthController.verifyEmail);
+
+/**
+ * @swagger
+ * /hospital/resend-email-code:
+ *   post:
+ *     summary: Resend hospital email verification OTP
+ *     tags: [Hospitals]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email: { type: string }
+ */
+router.post('/resend-email-code', hospitalAuthController.resendEmailCode);
 
 module.exports = router;

@@ -1,8 +1,10 @@
-const crypto = require('crypto');
-const mongoose = require('mongoose');
+// Backend/src/controllers/hospitalAuthController.js
 const Hospital = require('../models/Hospital');
 const { hashPassword } = require('../utils/hashPassword');
 const { sendVerificationEmail } = require('../services/emailService');
+const generateResetCode = require('../utils/generateResetCode');
+
+const RESEND_COOLDOWN_SECONDS = 60;
 
 exports.registerHospital = async (req, res, next) => {
   try {
@@ -10,16 +12,35 @@ exports.registerHospital = async (req, res, next) => {
     const finalName = hospitalName || name;
     const cleanEmail = email ? email.toLowerCase().trim() : '';
 
-    // Check for existing hospital
     const existingHospital = await Hospital.findOne({
       $or: [
         { email: cleanEmail },
-        { phone },
-        { licenseNumber }
-      ]
+        { phone: phone ? phone.trim() : '' },
+        { licenseNumber: licenseNumber ? licenseNumber.trim() : '' },
+      ],
     });
 
-    // Parse location coordinates
+    if (existingHospital) {
+      if (existingHospital.email === cleanEmail) {
+        return res.status(409).json({
+          success: false,
+          error: 'A hospital with this email is already registered.',
+        });
+      }
+      if (existingHospital.phone === (phone ? phone.trim() : '')) {
+        return res.status(409).json({
+          success: false,
+          error: 'A hospital with this phone number is already registered.',
+        });
+      }
+      if (existingHospital.licenseNumber === (licenseNumber ? licenseNumber.trim() : '')) {
+        return res.status(409).json({
+          success: false,
+          error: 'A hospital with this license number is already registered.',
+        });
+      }
+    }
+
     let coordinates = [38.75, 9.03];
     if (location) {
       if (Array.isArray(location.coordinates) && location.coordinates.length === 2) {
@@ -30,76 +51,40 @@ exports.registerHospital = async (req, res, next) => {
     }
 
     const hashedPassword = await hashPassword(password);
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-
-    // Idempotent test handling: if it already exists in dev/test, reset and allow re-registration
-    if (existingHospital) {
-      if (process.env.NODE_ENV !== 'production' || !existingHospital.emailVerified) {
-        existingHospital.hospitalName = finalName;
-        existingHospital.email = cleanEmail;
-        existingHospital.passwordHash = hashedPassword;
-        existingHospital.phone = phone;
-        existingHospital.licenseNumber = licenseNumber;
-        existingHospital.location = {
-          type: 'Point',
-          coordinates,
-          address: location?.address || 'Addis Ababa, Ethiopia'
-        };
-        existingHospital.emailVerified = false;
-        existingHospital.verificationToken = verificationToken;
-        existingHospital.verificationStatus = 'pending';
-        existingHospital.agreedToTerms = agreedToTerms !== undefined ? agreedToTerms : true;
-
-        await existingHospital.save();
-
-        return res.status(201).json({
-          success: true,
-          message: 'Hospital registered successfully. Please verify your email.',
-          hospitalId: existingHospital._id.toString()
-        });
-      }
-
-      return res.status(409).json({
-        success: false,
-        error: 'A hospital with this email is already registered.'
-      });
-    }
+    const { code, expiresAt } = generateResetCode();
 
     const hospital = new Hospital({
-      hospitalName: finalName,
+      hospitalName: finalName.trim(),
       email: cleanEmail,
       passwordHash: hashedPassword,
-      phone,
-      licenseNumber,
+      phone: phone.trim(),
+      licenseNumber: licenseNumber.trim(),
       location: {
         type: 'Point',
         coordinates,
-        address: location?.address || 'Addis Ababa, Ethiopia'
+        address: location?.address || 'Addis Ababa, Ethiopia',
       },
       agreedToTerms: agreedToTerms !== undefined ? agreedToTerms : true,
       emailVerified: false,
       verificationStatus: 'pending',
-      verificationToken
+      verificationOtp: code,
+      verificationOtpExpiresAt: expiresAt,
+      verificationOtpLastSentAt: new Date(),
     });
 
     await hospital.save();
 
-    const verificationLink = `http://localhost:3000/api/hospital/verify-email?token=${verificationToken}`;
-
     try {
-      if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example') || process.env.NODE_ENV === 'test') {
-        // Safe mock log
-      } else {
-        await sendVerificationEmail(hospital.email, verificationLink);
-      }
-    } catch (emailErr) {}
+      await sendVerificationEmail(hospital.email, code);
+    } catch (emailErr) {
+      console.warn('⚠️ SMTP Email dispatch error:', emailErr.message);
+    }
 
     return res.status(201).json({
       success: true,
-      message: 'Hospital registered successfully. Please verify your email.',
-      hospitalId: hospital._id.toString()
+      message: 'Registered. Verify your email. Your account will stay pending until Super Admin approves it.',
+      hospitalId: hospital._id.toString(),
     });
-
   } catch (error) {
     next(error);
   }
@@ -107,41 +92,92 @@ exports.registerHospital = async (req, res, next) => {
 
 exports.verifyEmail = async (req, res, next) => {
   try {
-    let token = req.query.token || req.params.token || req.params.hospitalId;
+    const email = req.body.email || req.query.email;
+    const code = req.body.code || req.body.token || req.query.code || req.query.token;
 
-    if (!token) {
+    if (!email || !code) {
       return res.status(400).json({
         success: false,
-        error: 'Token is required.'
+        error: 'Email and verification code are required.',
       });
     }
 
-    token = token.replace(/^=/, '').trim();
-
-    // 1. Try finding hospital by verificationToken
-    let hospital = await Hospital.findOne({ verificationToken: token });
-
-    // 2. Fallback: try finding by _id if token is a valid MongoDB ObjectId
-    if (!hospital && mongoose.Types.ObjectId.isValid(token)) {
-      hospital = await Hospital.findById(token);
-    }
+    const cleanEmail = email.toLowerCase().trim();
+    const hospital = await Hospital.findOne({ email: cleanEmail });
 
     if (!hospital) {
-      return res.status(404).json({
+      return res.status(400).json({
         success: false,
-        error: 'Invalid verification link or hospital not found.'
+        error: 'Invalid or expired verification code.',
       });
     }
 
-    // Set both emailVerified AND verificationStatus to 'approved'
+    if (
+      hospital.verificationOtp !== code.trim() ||
+      !hospital.verificationOtpExpiresAt ||
+      hospital.verificationOtpExpiresAt < new Date()
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid or expired verification code.',
+      });
+    }
+
+    // Set ONLY emailVerified = true. DO NOT change verificationStatus (must stay 'pending').
     hospital.emailVerified = true;
-    hospital.verificationStatus = 'approved';
-    hospital.verificationToken = null;
+    hospital.verificationOtp = null;
+    hospital.verificationOtpExpiresAt = null;
     await hospital.save();
 
     return res.status(200).json({
       success: true,
-      message: 'Email verified successfully. You can now log in.'
+      message: 'Email verified. Go to login page.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.verifyEmailOtp = exports.verifyEmail;
+
+exports.resendEmailCode = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Email is required.' });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const hospital = await Hospital.findOne({ email: cleanEmail });
+
+    if (hospital && !hospital.emailVerified) {
+      const now = new Date();
+      if (
+        hospital.verificationOtpLastSentAt &&
+        (now.getTime() - new Date(hospital.verificationOtpLastSentAt).getTime()) / 1000 < RESEND_COOLDOWN_SECONDS
+      ) {
+        return res.status(429).json({
+          success: false,
+          error: `Please wait ${RESEND_COOLDOWN_SECONDS} seconds before requesting a new code.`,
+        });
+      }
+
+      const { code, expiresAt } = generateResetCode();
+      hospital.verificationOtp = code;
+      hospital.verificationOtpExpiresAt = expiresAt;
+      hospital.verificationOtpLastSentAt = now;
+      await hospital.save();
+
+      try {
+        await sendVerificationEmail(hospital.email, code);
+      } catch (err) {
+        console.warn('⚠️ SMTP Email dispatch error:', err.message);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'If an unverified account exists with that email, a new code has been sent.',
     });
   } catch (error) {
     next(error);

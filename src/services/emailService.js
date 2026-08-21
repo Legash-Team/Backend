@@ -16,13 +16,19 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-async function sendVerificationEmail(toEmail, verificationLink) {
+async function sendVerificationEmail(toEmail, code) {
+  if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example') || process.env.NODE_ENV === 'test') {
+    console.log(`\n📧 [EMAIL MOCK] Verification OTP email for ${toEmail}:`);
+    console.log(`👉 Your Legash hospital verification code is: ${code}\n`);
+    return;
+  }
   await transporter.sendMail({
     from: process.env.EMAIL_FROM,
     to: toEmail,
-    subject: 'Verify your Legash account',
-    html: `<p>Click the link below to verify your account:</p>
-           <p><a href="${verificationLink}">${verificationLink}</a></p>`,
+    subject: 'Your Legash Hospital Verification Code',
+    html: `<p>Your 6-digit verification code is:</p>
+           <h2>${code}</h2>
+           <p>This code expires in 15 minutes.</p>`,
   });
 }
 
