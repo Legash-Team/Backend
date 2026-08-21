@@ -66,9 +66,27 @@ async function sendRejectionEmail(toEmail) {
   });
 }
 
+async function sendAdminVerificationOtp(toEmail, otp) {
+  if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example')) {
+    console.log(`\n📧 [EMAIL MOCK] Admin OTP email for ${toEmail}:`);
+    console.log(`👉 Your Legash Admin verification code is: ${otp}\n`);
+    return;
+  }
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM,
+    to: toEmail,
+    subject: 'Your Legash Admin verification code',
+    html: `<p>You have been added as an Admin to Legash.</p>
+           <p>Your 6-digit verification code is:</p>
+           <h2>${otp}</h2>
+           <p>This code expires in 15 minutes.</p>`,
+  });
+}
+
 module.exports = {
   sendVerificationEmail,
   sendPasswordResetEmail,
   sendApprovalEmail,
   sendRejectionEmail,
+  sendAdminVerificationOtp,
 };
