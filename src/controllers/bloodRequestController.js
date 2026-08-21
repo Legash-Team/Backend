@@ -1,22 +1,34 @@
+// Backend/src/controllers/bloodRequestController.js
 const BloodRequest = require('../models/BloodRequest');
 const BloodRequestResponse = require('../models/BloodRequestResponse');
 const Donor = require('../models/Donor');
 const Hospital = require('../models/Hospital');
 const { sendBloodAlert } = require('../services/pushService');
 const { sendBloodAlertSms } = require('../services/smsService');
-const { REQUEST_AUTO_CLOSE_HOURS, DEFAULT_SEARCH_RADIUS_KM } = require('../utils/constants');
+const { DEFAULT_SEARCH_RADIUS_KM } = require('../utils/constants');
+const { getCompatibleDonorTypes, isBloodTypeKnown } = require('../utils/bloodCompatibility');
 
-const VALID_BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+// Helper to auto-expire open blood requests that have passed closesAt
+async function expirePastRequests(filter = {}) {
+  const now = new Date();
+  await BloodRequest.updateMany(
+    { ...filter, status: 'open', closesAt: { $lte: now } },
+    { status: 'closed', closedReason: 'expired', closedAt: now }
+  );
+}
 
 exports.create = async (req, res, next) => {
   try {
-    const { bloodType, quantityNeeded } = req.body;
-    
-    if (!VALID_BLOOD_TYPES.includes(bloodType)) {
+    const { bloodType, quantityNeeded, isEmergency = false, description = '', closesAt } = req.body;
+
+    if (!isBloodTypeKnown(bloodType)) {
       return res.status(400).json({ success: false, error: 'Invalid blood type.' });
     }
     if (!Number.isInteger(quantityNeeded) || quantityNeeded < 1) {
       return res.status(400).json({ success: false, error: 'quantityNeeded must be a positive integer.' });
+    }
+    if (!closesAt || new Date(closesAt) <= new Date()) {
+      return res.status(400).json({ success: false, error: 'closesAt must be a valid future timestamp.' });
     }
 
     const hospital = await Hospital.findById(req.user.id);
@@ -24,23 +36,27 @@ exports.create = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Hospital not found.' });
     }
 
-    const closesAt = new Date(Date.now() + REQUEST_AUTO_CLOSE_HOURS * 60 * 60 * 1000);
     const request = await BloodRequest.create({
       hospital: req.user.id,
       bloodType,
       quantityNeeded,
-      closesAt,
+      isEmergency: Boolean(isEmergency),
+      description: description.trim(),
+      closesAt: new Date(closesAt),
     });
 
-    // Match donors
+    const compatibleTypes = getCompatibleDonorTypes(bloodType);
+
+    // Match only nearby donors with compatible blood types (excluding unknown)
     const matchedDonors = await Donor.find({
-      bloodType,
+      bloodType: { $in: compatibleTypes },
+      isDeleted: { $ne: true },
       location: {
         $near: {
           $geometry: hospital.location,
-          $maxDistance: DEFAULT_SEARCH_RADIUS_KM * 1000
-        }
-      }
+          $maxDistance: DEFAULT_SEARCH_RADIUS_KM * 1000,
+        },
+      },
     });
 
     const notifications = matchedDonors.map(async (donor) => {
@@ -58,16 +74,14 @@ exports.create = async (req, res, next) => {
       const pushPromise = sendBloodAlert(donor.pushToken, alertData);
       const smsPromise = sendBloodAlertSms(donor.phone, alertData);
 
-      // We use Promise.allSettled to ensure that one failure doesn't halt the others for this donor
       return Promise.allSettled([pushPromise, smsPromise]);
     });
 
-    // Wait for all fan-outs (each handles its own rejections via allSettled)
     await Promise.allSettled(notifications);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      message: 'Request posted. Nearby donors with a matching blood type have been notified.',
+      message: 'Request posted. Nearby compatible donors have been notified.',
       requestId: request._id,
       notifiedDonorCount: matchedDonors.length,
     });
@@ -78,43 +92,57 @@ exports.create = async (req, res, next) => {
 
 exports.list = async (req, res, next) => {
   try {
-    const { status } = req.query;
+    // Automatically close past requests before querying
+    await expirePastRequests({ hospital: req.user.id });
+
+    const { urgency, status } = req.query;
     const filter = { hospital: req.user.id };
+
+    if (urgency === 'emergency') {
+      filter.isEmergency = true;
+    } else if (urgency === 'notUrgent') {
+      filter.isEmergency = false;
+    }
+
     if (status === 'open' || status === 'closed') {
       filter.status = status;
     }
 
     const requests = await BloodRequest.find(filter).sort({ createdAt: -1 });
-    
-    const results = await Promise.all(requests.map(async (reqDoc) => {
-      const responses = await BloodRequestResponse.find({ bloodRequest: reqDoc._id });
-      let acceptedCount = 0;
-      let deniedCount = 0;
-      let pendingCount = 0;
 
-      for (const response of responses) {
-        if (response.status === 'accepted') acceptedCount++;
-        else if (response.status === 'denied') deniedCount++;
-        else pendingCount++;
-      }
+    const results = await Promise.all(
+      requests.map(async (reqDoc) => {
+        const responses = await BloodRequestResponse.find({ bloodRequest: reqDoc._id });
+        let acceptedCount = 0;
+        let deniedCount = 0;
+        let pendingCount = 0;
 
-      return {
-        id: reqDoc._id,
-        bloodType: reqDoc.bloodType,
-        quantityNeeded: reqDoc.quantityNeeded,
-        status: reqDoc.status,
-        closedReason: reqDoc.closedReason,
-        createdAt: reqDoc.createdAt,
-        closesAt: reqDoc.closesAt,
-        closedAt: reqDoc.closedAt,
-        notifiedDonorCount: responses.length,
-        acceptedCount,
-        deniedCount,
-        pendingCount,
-      };
-    }));
+        for (const response of responses) {
+          if (response.status === 'accepted') acceptedCount++;
+          else if (response.status === 'denied') deniedCount++;
+          else pendingCount++;
+        }
 
-    res.status(200).json({ success: true, requests: results });
+        return {
+          id: reqDoc._id,
+          bloodType: reqDoc.bloodType,
+          quantityNeeded: reqDoc.quantityNeeded,
+          isEmergency: reqDoc.isEmergency,
+          description: reqDoc.description,
+          status: reqDoc.status,
+          closedReason: reqDoc.closedReason,
+          createdAt: reqDoc.createdAt,
+          closesAt: reqDoc.closesAt,
+          closedAt: reqDoc.closedAt,
+          notifiedDonorCount: responses.length,
+          acceptedCount,
+          deniedCount,
+          pendingCount,
+        };
+      })
+    );
+
+    return res.status(200).json({ success: true, requests: results });
   } catch (error) {
     next(error);
   }
@@ -122,13 +150,18 @@ exports.list = async (req, res, next) => {
 
 exports.getResponses = async (req, res, next) => {
   try {
+    await expirePastRequests({ hospital: req.user.id });
+
     const request = await BloodRequest.findById(req.params.id);
     if (!request || request.hospital.toString() !== req.user.id) {
       return res.status(404).json({ success: false, error: 'Request not found.' });
     }
 
-    const responses = await BloodRequestResponse.find({ bloodRequest: request._id }).populate('donor', 'name gender bloodType phone');
-    
+    const responses = await BloodRequestResponse.find({ bloodRequest: request._id }).populate(
+      'donor',
+      'name gender bloodType phone'
+    );
+
     const accepted = [];
     let deniedCount = 0;
     let pendingCount = 0;
@@ -137,6 +170,7 @@ exports.getResponses = async (req, res, next) => {
       if (response.status === 'accepted') {
         if (response.donor) {
           accepted.push({
+            id: response.donor._id,
             name: response.donor.name,
             gender: response.donor.gender,
             bloodType: response.donor.bloodType,
@@ -150,7 +184,7 @@ exports.getResponses = async (req, res, next) => {
       }
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       requestStatus: request.status,
       accepted,
@@ -178,7 +212,7 @@ exports.close = async (req, res, next) => {
     request.closedAt = new Date();
     await request.save();
 
-    res.status(200).json({ success: true, message: 'Request closed.' });
+    return res.status(200).json({ success: true, message: 'Request closed.' });
   } catch (error) {
     next(error);
   }
