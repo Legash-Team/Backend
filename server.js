@@ -33,6 +33,8 @@ const donorNotificationController = require('./src/controllers/donorNotification
 const verifyToken = require('./src/middleware/authMiddleware');
 const requireRole = require('./src/middleware/requireRole');
 const { startAutoCloseJob } = require('./src/jobs/autoCloseBloodRequests');
+const feedbackController = require('./src/controllers/feedbackController');
+const inventoryRoutes = require('./src/routes/inventoryRoutes');
 
 const app = express();
 
@@ -40,6 +42,9 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// Public Hospital Feedback Submission
+app.post('/api/hospital/feedback', feedbackController.submitFeedback);
 
 app.use('/api/hospital', hospitalAuthRoutes);
 app.use('/api/auth', sharedAuthRoutes);
@@ -49,6 +54,9 @@ app.use('/api/donor/notifications', donorNotificationRoutes);
 app.post('/api/donor/push-token', verifyToken, requireRole('donor'), donorNotificationController.registerPushToken);
 app.use('/api/superadmin', superAdminRoutes);
 app.use('/api/donor/events', eventRoutes);
+
+// Facility Inventory Routes (Sprint 2 Contract)
+app.use('/v1/inventory', inventoryRoutes);
 
 app.get('/', (req, res) => res.json({ status: 'Legash API running' }));
 

@@ -92,10 +92,39 @@ async function sendAdminVerificationOtp(toEmail, otp) {
   });
 }
 
+async function sendAdminSetupEmail(toEmail, setupToken, permissions) {
+  const setupLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/admin/setup?token=${setupToken}`;
+  const isDevOrTest =
+    !process.env.EMAIL_USER ||
+    process.env.EMAIL_USER.includes('example') ||
+    process.env.NODE_ENV === 'test';
+
+  if (isDevOrTest) {
+    console.log(`\n📧 [EMAIL MOCK] Admin Setup Invitation sent to ${toEmail}:`);
+    console.log(`👉 Permissions: ${JSON.stringify(permissions)}`);
+    console.log(`👉 Setup Link: ${setupLink}\n`);
+    return;
+  }
+
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+    to: toEmail,
+    subject: 'Invitation to Join Legash Admin Portal',
+    html: `<p>You have been invited as an Admin on Legash with permissions:</p>
+           <ul>
+             <li>Approve Hospitals: ${permissions.canApproveHospitals ? 'Yes' : 'No'}</li>
+             <li>Post Events: ${permissions.canPostEvents ? 'Yes' : 'No'}</li>
+           </ul>
+           <p>Click the link below to set up your password:</p>
+           <p><a href="${setupLink}">${setupLink}</a></p>`,
+  });
+}
+
 module.exports = {
   sendVerificationEmail,
   sendPasswordResetEmail,
   sendApprovalEmail,
   sendRejectionEmail,
   sendAdminVerificationOtp,
+  sendAdminSetupEmail,
 };

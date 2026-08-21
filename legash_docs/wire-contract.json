@@ -45,11 +45,12 @@
       }
     },
     {
-      "method": "GET",
-      "path": "/api/hospitals/verify-email/:hospitalId",
+      "method": "POST",
+      "path": "/api/hospitals/verify-email",
       "auth": false,
-      "pathParams": {
-        "hospitalId": "string, the hospital _id"
+      "requestBody": {
+        "email": "string, required",
+        "code": "string, required"
       },
       "responses": {
         "200": {

@@ -7,6 +7,7 @@ const requirePermission = require('../../src/middleware/requirePermission');
 const Admin = require('../../src/models/Admin');
 const SuperAdmin = require('../../src/models/SuperAdmin');
 const Feedback = require('../../src/models/Feedback');
+const Hospital = require('../../src/models/Hospital');
 const generateToken = require('../../src/utils/generateToken');
 const { hashPassword } = require('../../src/utils/hashPassword');
 
@@ -39,6 +40,7 @@ describe('Integration Tests: Admin Creation, Listing, OTP Verification & RBAC', 
     await Admin.deleteMany({});
     await SuperAdmin.deleteMany({});
     await Feedback.deleteMany({});
+    await Hospital.deleteMany({});
 
     const passwordHash = await hashPassword('SuperSecret123!');
     superAdminUser = await SuperAdmin.create({
@@ -262,6 +264,45 @@ describe('Integration Tests: Admin Creation, Listing, OTP Verification & RBAC', 
 
       const updated = await Feedback.findById(feedback._id);
       expect(updated.status).toBe('reviewed');
+    });
+  });
+
+  describe('Hospital Rejection & Re-approval Flow', () => {
+    test('Super Admin rejects a hospital with a reason, then successfully approves the rejected hospital', async () => {
+      const hospital = await Hospital.create({
+        hospitalName: 'Appeal Hospital',
+        email: 'appeal@legash.org',
+        passwordHash: 'dummyhash',
+        phone: '+251911123456',
+        licenseNumber: 'L-APPEAL-123',
+        location: { coordinates: [38.74, 9.03] },
+        verificationStatus: 'pending',
+      });
+
+      // 1. Reject hospital with a reason
+      const rejectRes = await request(app)
+        .post(`/api/superadmin/hospitals/${hospital._id}/reject`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ reason: 'Documents are unreadable.' });
+
+      expect(rejectRes.statusCode).toBe(200);
+      expect(rejectRes.body.success).toBe(true);
+
+      const rejectedHospital = await Hospital.findById(hospital._id);
+      expect(rejectedHospital.verificationStatus).toBe('rejected');
+      expect(rejectedHospital.rejectionReason).toBe('Documents are unreadable.');
+
+      // 2. Approve the rejected hospital (Option B: programmatic re-approval)
+      const approveRes = await request(app)
+        .post(`/api/superadmin/hospitals/${hospital._id}/approve`)
+        .set('Authorization', `Bearer ${superAdminToken}`);
+
+      expect(approveRes.statusCode).toBe(200);
+      expect(approveRes.body.success).toBe(true);
+
+      const approvedHospital = await Hospital.findById(hospital._id);
+      expect(approvedHospital.verificationStatus).toBe('approved');
+      expect(approvedHospital.rejectionReason).toBeNull();
     });
   });
 });
