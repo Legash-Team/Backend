@@ -6,6 +6,7 @@ const verifyToken = require('../../src/middleware/authMiddleware');
 const requirePermission = require('../../src/middleware/requirePermission');
 const Admin = require('../../src/models/Admin');
 const SuperAdmin = require('../../src/models/SuperAdmin');
+const Feedback = require('../../src/models/Feedback');
 const generateToken = require('../../src/utils/generateToken');
 const { hashPassword } = require('../../src/utils/hashPassword');
 
@@ -37,6 +38,7 @@ describe('Integration Tests: Admin Creation, Listing, OTP Verification & RBAC', 
   beforeEach(async () => {
     await Admin.deleteMany({});
     await SuperAdmin.deleteMany({});
+    await Feedback.deleteMany({});
 
     const passwordHash = await hashPassword('SuperSecret123!');
     superAdminUser = await SuperAdmin.create({
@@ -220,6 +222,46 @@ describe('Integration Tests: Admin Creation, Listing, OTP Verification & RBAC', 
         .set('Authorization', `Bearer ${adminToken}`);
       expect(resDenied.statusCode).toBe(403);
       expect(resDenied.body.error).toMatch(/permission/i);
+    });
+  });
+
+  describe('Feedback Management Routes', () => {
+    test('GET /api/superadmin/feedbacks returns list of hospital appeal feedbacks', async () => {
+      await Feedback.create({
+        email: 'hospital.appeal@legash.org',
+        hospitalName: 'Appeal Hospital',
+        message: 'Please reconsider rejection',
+        status: 'new',
+      });
+
+      const res = await request(app)
+        .get('/api/superadmin/feedbacks')
+        .set('Authorization', `Bearer ${superAdminToken}`);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.feedbacks).toHaveLength(1);
+      expect(res.body.feedbacks[0].email).toBe('hospital.appeal@legash.org');
+    });
+
+    test('PATCH /api/superadmin/feedbacks/:id/reviewed marks feedback as reviewed', async () => {
+      const feedback = await Feedback.create({
+        email: 'hospital.review@legash.org',
+        hospitalName: 'Review Hospital',
+        message: 'Documents updated',
+        status: 'new',
+      });
+
+      const res = await request(app)
+        .patch(`/api/superadmin/feedbacks/${feedback._id}/reviewed`)
+        .set('Authorization', `Bearer ${superAdminToken}`);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.feedback.status).toBe('reviewed');
+
+      const updated = await Feedback.findById(feedback._id);
+      expect(updated.status).toBe('reviewed');
     });
   });
 });
