@@ -5,8 +5,7 @@ const Hospital = require('../models/Hospital');
 const { sendBloodAlert } = require('../services/pushService');
 const { sendBloodAlertSms } = require('../services/smsService');
 const { REQUEST_AUTO_CLOSE_HOURS, DEFAULT_SEARCH_RADIUS_KM } = require('../utils/constants');
-
-const VALID_BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+const { getCompatibleDonorTypes, isBloodTypeKnown, VALID_BLOOD_TYPES } = require('../utils/bloodCompatibility');
 
 exports.create = async (req, res, next) => {
   try {
@@ -32,9 +31,11 @@ exports.create = async (req, res, next) => {
       closesAt,
     });
 
-    // Match donors
+    // Match compatible donors (exclude unknown blood types)
+    const compatibleDonorTypes = getCompatibleDonorTypes(bloodType).filter(isBloodTypeKnown);
+
     const matchedDonors = await Donor.find({
-      bloodType,
+      bloodType: { $in: compatibleDonorTypes },
       location: {
         $near: {
           $geometry: hospital.location,

@@ -1,7 +1,10 @@
 const mongoose = require('mongoose');
 const Hospital = require('../../src/models/Hospital');
 const Admin = require('../../src/models/Admin');
+const Feedback = require('../../src/models/Feedback');
+const Event = require('../../src/models/Event');
 const superAdminController = require('../../src/controllers/superAdminController');
+const feedbackController = require('../../src/controllers/feedbackController');
 const emailService = require('../../src/services/emailService');
 const requirePermission = require('../../src/middleware/requirePermission');
 
@@ -744,6 +747,162 @@ describe('Super Admin Controller Unit Tests', () => {
       await expect(emailService.sendApprovalEmail('hospital@example.com')).resolves.not.toThrow();
       await expect(emailService.sendRejectionEmail('hospital@example.com', 'Reason here')).resolves.not.toThrow();
       await expect(emailService.sendAdminVerificationOtp('admin@example.com', '123456')).resolves.not.toThrow();
+    });
+  });
+
+  describe('Feedback Management', () => {
+    beforeEach(async () => {
+      await Feedback.deleteMany({});
+    });
+
+    it('submits feedback via feedbackController and stores in DB', async () => {
+      const req = {
+        body: {
+          email: 'rejected.hospital@example.com',
+          hospitalName: 'Rejected Hospital LLC',
+          message: 'We have updated our license documents, please re-evaluate.'
+        }
+      };
+      const res = mockResponse();
+      const next = jest.fn();
+
+      await feedbackController.submitFeedback(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.feedback).toBeDefined();
+      expect(res.body.feedback.email).toBe('rejected.hospital@example.com');
+      expect(res.body.feedback.message).toBe('We have updated our license documents, please re-evaluate.');
+      expect(res.body.feedback.status).toBe('new');
+    });
+
+    it('returns 400 when email or message is missing on feedback submission', async () => {
+      const reqNoEmail = { body: { message: 'Some message' } };
+      const res1 = mockResponse();
+      const next1 = jest.fn();
+      await feedbackController.submitFeedback(reqNoEmail, res1, next1);
+      expect(res1.status).toHaveBeenCalledWith(400);
+
+      const reqNoMsg = { body: { email: 'test@example.com', message: '' } };
+      const res2 = mockResponse();
+      const next2 = jest.fn();
+      await feedbackController.submitFeedback(reqNoMsg, res2, next2);
+      expect(res2.status).toHaveBeenCalledWith(400);
+    });
+
+    it('lists all feedbacks via superAdminController.listFeedbacks', async () => {
+      await Feedback.create({
+        email: 'hosp1@example.com',
+        hospitalName: 'Hospital 1',
+        message: 'Feedback message 1'
+      });
+      await Feedback.create({
+        email: 'hosp2@example.com',
+        hospitalName: 'Hospital 2',
+        message: 'Feedback message 2'
+      });
+
+      const req = {};
+      const res = mockResponse();
+      const next = jest.fn();
+
+      await superAdminController.listFeedbacks(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.feedbacks).toHaveLength(2);
+    });
+
+    it('marks feedback as reviewed via superAdminController.markFeedbackReviewed', async () => {
+      const feedback = await Feedback.create({
+        email: 'hosp.review@example.com',
+        hospitalName: 'Hospital Review',
+        message: 'Please review our appeal',
+        status: 'new'
+      });
+
+      const req = { params: { id: feedback._id.toString() } };
+      const res = mockResponse();
+      const next = jest.fn();
+
+      await superAdminController.markFeedbackReviewed(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.feedback.status).toBe('reviewed');
+
+      const updated = await Feedback.findById(feedback._id);
+      expect(updated.status).toBe('reviewed');
+    });
+
+    it('returns 404 when marking non-existent feedback as reviewed', async () => {
+      const nonExistentId = new mongoose.Types.ObjectId().toString();
+      const req = { params: { id: nonExistentId } };
+      const res = mockResponse();
+      const next = jest.fn();
+
+      await superAdminController.markFeedbackReviewed(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toBe('Feedback not found.');
+    });
+  });
+
+  describe('Event Management delegation in superAdminController', () => {
+    beforeEach(async () => {
+      await Event.deleteMany({});
+    });
+
+    it('creates an event via superAdminController.createEvent', async () => {
+      const futureDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
+      const req = {
+        user: { id: new mongoose.Types.ObjectId().toString(), role: 'superadmin' },
+        body: {
+          description: 'SuperAdmin Blood Drive',
+          mediaUrl: 'https://example.com/banner.png',
+          closesAt: futureDate,
+        }
+      };
+      const res = mockResponse();
+      const next = jest.fn();
+
+      await superAdminController.createEvent(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.event.description).toBe('SuperAdmin Blood Drive');
+      expect(res.body.event.status).toBe('open');
+    });
+
+    it('lists events with dynamic status via superAdminController.listAdminEvents', async () => {
+      const futureDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+      const pastDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+
+      await Event.create({
+        description: 'Future Active Event',
+        closesAt: futureDate,
+      });
+      await Event.create({
+        description: 'Past Closed Event',
+        closesAt: pastDate,
+      });
+
+      const req = {};
+      const res = mockResponse();
+      const next = jest.fn();
+
+      await superAdminController.listAdminEvents(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.events).toHaveLength(2);
+
+      const futureEvt = res.body.events.find(e => e.description === 'Future Active Event');
+      const pastEvt = res.body.events.find(e => e.description === 'Past Closed Event');
+
+      expect(futureEvt.status).toBe('open');
+      expect(pastEvt.status).toBe('closed');
     });
   });
 });

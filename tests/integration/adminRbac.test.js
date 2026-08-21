@@ -1,6 +1,7 @@
 const request = require('supertest');
 const express = require('express');
 const superAdminRoutes = require('../../src/routes/superAdminRoutes');
+const sharedAuthRoutes = require('../../src/routes/sharedAuthRoutes');
 const errorHandler = require('../../src/middleware/errorHandler');
 const verifyToken = require('../../src/middleware/authMiddleware');
 const requirePermission = require('../../src/middleware/requirePermission');
@@ -12,6 +13,7 @@ const { hashPassword } = require('../../src/utils/hashPassword');
 const app = express();
 app.use(express.json());
 app.use('/api/superadmin', superAdminRoutes);
+app.use('/api/auth', sharedAuthRoutes);
 
 // Test routes to verify requirePermission middleware behavior in action
 app.get(
@@ -220,6 +222,29 @@ describe('Integration Tests: Admin Creation, Listing, OTP Verification & RBAC', 
         .set('Authorization', `Bearer ${adminToken}`);
       expect(resDenied.statusCode).toBe(403);
       expect(resDenied.body.error).toMatch(/permission/i);
+    });
+  });
+
+  describe('Explicit "No Admin Login Yet" Boundary Test', () => {
+    test('Attempting /api/auth/login with Admin email is rejected (401)', async () => {
+      await Admin.create({
+        name: 'Verified Admin User',
+        email: 'admin.user@legash.org',
+        emailVerified: true,
+        passwordHash: await hashPassword('AdminPass123!'),
+        permissions: { canApproveHospitals: true, canPostEvents: true },
+      });
+
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: 'admin.user@legash.org',
+          password: 'AdminPass123!',
+        });
+
+      expect(res.statusCode).toBe(401);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toBe('Invalid email or password.');
     });
   });
 });

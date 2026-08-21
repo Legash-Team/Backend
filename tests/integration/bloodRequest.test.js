@@ -154,6 +154,87 @@ describe('Blood Request Lifecycle Integration', () => {
     expect(res.body.error).toBe('This request is already closed.');
   });
 
+  it('matches compatible-but-not-exact donor types and excludes incompatible & unknown types', async () => {
+    // Seed extra donors with distinct blood types:
+    // A+ (exact match for A+)
+    const donorAPositive = await Donor.create({
+      name: 'A Positive Donor',
+      phone: '+251911000001',
+      fin: 'FIN-A1',
+      gender: 'male',
+      bloodType: 'A+',
+      location: { type: 'Point', coordinates: [38.7579, 9.0321] },
+      agreedToTerms: true,
+      phoneVerified: true,
+      passwordHash: 'hashed'
+    });
+
+    // O- (compatible non-exact match for A+)
+    const donorONegative = await Donor.create({
+      name: 'O Negative Donor',
+      phone: '+251911000002',
+      fin: 'FIN-O1',
+      gender: 'female',
+      bloodType: 'O-',
+      location: { type: 'Point', coordinates: [38.7579, 9.0321] },
+      agreedToTerms: true,
+      phoneVerified: true,
+      passwordHash: 'hashed'
+    });
+
+    // B+ (incompatible for A+)
+    const donorBPositive = await Donor.create({
+      name: 'B Positive Donor',
+      phone: '+251911000003',
+      fin: 'FIN-B1',
+      gender: 'male',
+      bloodType: 'B+',
+      location: { type: 'Point', coordinates: [38.7579, 9.0321] },
+      agreedToTerms: true,
+      phoneVerified: true,
+      passwordHash: 'hashed'
+    });
+
+    // unknown (must be excluded)
+    const donorUnknown = await Donor.create({
+      name: 'Unknown Type Donor',
+      phone: '+251911000004',
+      fin: 'FIN-U1',
+      gender: 'male',
+      bloodType: 'unknown',
+      location: { type: 'Point', coordinates: [38.7579, 9.0321] },
+      agreedToTerms: true,
+      phoneVerified: true,
+      passwordHash: 'hashed'
+    });
+
+    // Request A+ blood
+    const res = await request(app)
+      .post('/api/hospital/blood-requests')
+      .set('Authorization', `Bearer ${hospitalToken}`)
+      .send({
+        bloodType: 'A+',
+        quantityNeeded: 3,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+
+    // Compatible donors in fixture for A+:
+    // donor1 (O+ from beforeEach), donor2 (A+ from beforeEach), donorAPositive (A+), donorONegative (O-)
+    // Incompatible: donorBPositive (B+)
+    // Excluded: donorUnknown ('unknown')
+    expect(res.body.notifiedDonorCount).toBe(4);
+
+    const responses = await BloodRequestResponse.find({ bloodRequest: res.body.requestId });
+    const notifiedDonorIds = responses.map(r => r.donor.toString());
+
+    expect(notifiedDonorIds).toContain(donorAPositive._id.toString());
+    expect(notifiedDonorIds).toContain(donorONegative._id.toString());
+    expect(notifiedDonorIds).not.toContain(donorBPositive._id.toString());
+    expect(notifiedDonorIds).not.toContain(donorUnknown._id.toString());
+  });
+
   describe('Validation and Authorization (400/403)', () => {
     it('returns 403 Forbidden when a Donor tries to access hospital routes', async () => {
       // POST /

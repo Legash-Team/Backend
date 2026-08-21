@@ -1,19 +1,20 @@
-const crypto = require('crypto');
 const mongoose = require('mongoose');
 const Hospital = require('../models/Hospital');
-const Event = require('../models/Event');
+const Feedback = require('../models/Feedback');
 const Admin = require('../models/Admin');
 const emailService = require('../services/emailService');
 const generateResetCode = require('../utils/generateResetCode');
-const { hashPassword } = require('../utils/hashPassword');
+const eventController = require('./eventController');
 
+/**
+ * List hospitals pending approval that have verified their email address.
+ */
 exports.listPendingHospitals = async (req, res, next) => {
   try {
     const hospitals = await Hospital.find({
       verificationStatus: 'pending',
       emailVerified: true,
-      isDeleted: { $ne: true },
-    }).sort({ createdAt: -1 });
+    });
 
     const formattedHospitals = hospitals.map((hospital) => {
       const lat = hospital.location?.coordinates?.[1] ?? 0;
@@ -39,6 +40,9 @@ exports.listPendingHospitals = async (req, res, next) => {
   }
 };
 
+/**
+ * Approve a pending hospital.
+ */
 exports.approveHospital = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -77,13 +81,15 @@ exports.approveHospital = async (req, res, next) => {
   }
 };
 
+/**
+ * Reject a pending hospital with a required reason.
+ */
 exports.rejectHospital = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { reason, rejectionReason } = req.body || {};
     const finalReason = (reason || rejectionReason || '').toString().trim();
 
-    // 1. Status and existence validation first
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
@@ -100,7 +106,6 @@ exports.rejectHospital = async (req, res, next) => {
       });
     }
 
-    // 2. Rejection reason required for pending hospital
     if (!finalReason) {
       return res.status(400).json({
         success: false,
@@ -127,85 +132,10 @@ exports.rejectHospital = async (req, res, next) => {
   }
 };
 
-exports.listFeedbacks = async (req, res, next) => {
-  try {
-    const FeedbackModel = mongoose.models.Feedback || Event;
-    const feedbacks = await FeedbackModel.find().sort({ createdAt: -1 });
-    return res.status(200).json({
-      success: true,
-      feedbacks,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-exports.markFeedbackReviewed = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(404).json({ success: false, error: 'Feedback not found.' });
-    }
-
-    const FeedbackModel = mongoose.models.Feedback || Event;
-    const feedback = await FeedbackModel.findByIdAndUpdate(id, { status: 'reviewed' }, { new: true });
-    if (!feedback) {
-      return res.status(404).json({ success: false, error: 'Feedback not found.' });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: 'Feedback marked as reviewed.',
-      feedback,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-exports.createEvent = async (req, res, next) => {
-  try {
-    const { mediaUrl, mediaType, description, applyLink, closesAt } = req.body;
-
-    if (!description || !closesAt) {
-      return res.status(400).json({
-        success: false,
-        error: 'Description and closesAt timestamp are required.',
-      });
-    }
-
-    const event = await Event.create({
-      mediaUrl: mediaUrl || null,
-      mediaType: mediaType || 'image',
-      description: description.trim(),
-      applyLink: applyLink || null,
-      closesAt: new Date(closesAt),
-      createdBy: req.user?.id,
-      creatorModel: req.user?.role === 'superadmin' ? 'SuperAdmin' : 'Admin',
-    });
-
-    return res.status(201).json({
-      success: true,
-      message: 'Event posted successfully.',
-      event,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-exports.listAdminEvents = async (req, res, next) => {
-  try {
-    const events = await Event.find().sort({ createdAt: -1 });
-    return res.status(200).json({
-      success: true,
-      events,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
+/**
+ * Super Admin creates an Admin account with specified permissions.
+ * Generates and sends a 6-digit OTP to the admin's email.
+ */
 exports.createAdmin = async (req, res, next) => {
   try {
     const { name, email, permissions, role } = req.body;
@@ -269,6 +199,7 @@ exports.createAdmin = async (req, res, next) => {
       verificationOtp: code,
       verificationOtpExpiresAt: expiresAt,
       passwordHash: null,
+      createdBy: req.user?.id || req.user?._id || null,
     });
 
     await admin.save();
@@ -298,6 +229,9 @@ exports.createAdmin = async (req, res, next) => {
   }
 };
 
+/**
+ * Super Admin lists all created Admins.
+ */
 exports.listAdmins = async (req, res, next) => {
   try {
     const admins = await Admin.find().sort({ createdAt: -1 });
@@ -320,6 +254,10 @@ exports.listAdmins = async (req, res, next) => {
   }
 };
 
+/**
+ * Public endpoint: Verify 6-digit OTP sent to admin's email.
+ * Sets emailVerified: true and clears verificationOtp.
+ */
 exports.verifyAdminOtp = async (req, res, next) => {
   try {
     const { email, otp, code, verificationOtp } = req.body;
@@ -376,3 +314,49 @@ exports.verifyAdminOtp = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Super Admin lists all submitted feedbacks.
+ */
+exports.listFeedbacks = async (req, res, next) => {
+  try {
+    const feedbacks = await Feedback.find().sort({ createdAt: -1 });
+    return res.status(200).json({
+      success: true,
+      feedbacks,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Super Admin marks a feedback as reviewed.
+ */
+exports.markFeedbackReviewed = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(404).json({ success: false, error: 'Feedback not found.' });
+    }
+
+    const feedback = await Feedback.findByIdAndUpdate(id, { status: 'reviewed' }, { new: true });
+    if (!feedback) {
+      return res.status(404).json({ success: false, error: 'Feedback not found.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Feedback marked as reviewed.',
+      feedback,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Delegate Event Creation & Listing to eventController (Single Source of Truth).
+ */
+exports.createEvent = eventController.createEvent;
+exports.listAdminEvents = eventController.listEvents;
