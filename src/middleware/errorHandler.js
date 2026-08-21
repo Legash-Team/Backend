@@ -21,6 +21,12 @@ function errorHandler(err, req, res, _next) {
     message = 'A record with that email, phone, or license number already exists.';
   }
 
+  // Map CORS origin violations to 400 Bad Request
+  if (err.message && err.message.includes('CORS')) {
+    status = 400;
+    message = err.message;
+  }
+
   res.status(status).json({
     success: false,
     error: message,
