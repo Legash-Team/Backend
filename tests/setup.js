@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const TEST_MONGO_URI = 'mongodb://127.0.0.1:27017/legash_test_db';
 
 beforeAll(async () => {
+  process.env.MONGO_URI = TEST_MONGO_URI;
   process.env.JWT_SECRET = 'test_jwt_secret_key_12345';
   process.env.JWT_EXPIRES_IN = '24h';
 
