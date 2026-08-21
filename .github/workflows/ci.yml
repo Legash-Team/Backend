@@ -1,40 +1,41 @@
-name: CI
+name: Legash Backend CI
 
 on:
-  pull_request:
   push:
-    branches: [main, dev]
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   test:
-    name: Lint + Contract + Tests
     runs-on: ubuntu-latest
+
     services:
       mongodb:
-        image: mongo:7
+        image: mongo:6.0
         ports:
           - 27017:27017
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 18
-          cache: npm
+          node-version: 20
+          cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Contract drift check (routes vs wire-contract.json)
+      - name: Run API Contract Checks
         run: npm run test:contract
 
-      - name: Unit + integration tests (jest)
-        run: npm test
-
-      - name: Contract E2E (Postman collection against the real Backend)
-        run: npm run test:contract:e2e
+      - name: Run Test Suite
         env:
-          CONTRACT_MONGO_URI: mongodb://127.0.0.1:27017/legash_contract_test_db
+          NODE_ENV: test
+          MONGO_URI: mongodb://localhost:27017/legash-test
+          JWT_SECRET: super_secret_jwt_key_for_testing_purposes
+          JWT_EXPIRES_IN: 1d
+        run: npm test

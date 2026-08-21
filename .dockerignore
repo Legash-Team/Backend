@@ -1,0 +1,28 @@
+# Ignore local node_modules (must be installed inside image)
+node_modules/
+
+# Ignore debug logs
+npm-debug.log
+yarn-error.log
+
+# Ignore git directories
+.git/
+.gitignore
+
+# Ignore CI/CD configurations
+.github/
+
+# Ignore environment variables and secrets
+.env
+.env.*
+
+# Ignore test suites and coverage reports
+tests/
+coverage/
+
+# Ignore build artifacts
+*.md
+Dockerfile
+.dockerignore
+.eslint*
+.prettier*
