@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const Hospital = require('../models/Hospital');
 const Feedback = require('../models/Feedback');
 const Event = require('../models/Event');
+const Admin = require('../models/Admin');
 const emailService = require('../services/emailService');
 const { hashPassword } = require('../utils/hashPassword');
 
