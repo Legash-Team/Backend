@@ -82,7 +82,6 @@ describe('Sprint 3 Donor Full Lifecycle & Security Contract', () => {
     expect(failUnlock.status).toBe(401);
     expect(failUnlock.body.error).toBe('Invalid PIN.');
 
-    /* Commented out for branch #62 (these will be enabled in #63 and #64)
     // 5. Get Profile
     const profileRes = await request(app)
       .get('/api/donor/profile')
@@ -134,6 +133,7 @@ describe('Sprint 3 Donor Full Lifecycle & Security Contract', () => {
     expect(centersRes.status).toBe(200);
     expect(centersRes.body.centers).toEqual([]);
 
+    /* Commented out for branch #63 (this will be enabled in #64)
     // 8. Respond to request and verify nextSteps payload
     const hospital = await Hospital.create({
       hospitalName: 'St. Paul Hospital',
