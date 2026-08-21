@@ -3,9 +3,9 @@ const Hospital = require('../../src/models/Hospital');
 
 describe('Unit Tests: Hospital Model Schema & Default Blood Stock', () => {
   const validHospitalData = {
-    name: 'Test Hospital',
+    hospitalName: 'Test Hospital',
     email: 'test@hospital.edu.et',
-    password: 'StrongPassword123!',
+    passwordHash: 'StrongPasswordHash123!',
     phone: '+251911999999',
     licenseNumber: 'HOSP-ETH-999',
     location: {

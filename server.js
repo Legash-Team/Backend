@@ -56,7 +56,6 @@ const requireRole = require('./src/middleware/requireRole');
 app.use('/api/hospital/blood-requests', bloodRequestRoutes);
 app.use('/api/donor/notifications', donorNotificationRoutes);
 app.post('/api/donor/push-token', verifyToken, requireRole('donor'), donorNotificationController.registerPushToken);
-app.use('/api/donor', donorAuthRoutes);
 app.use('/api/superadmin', superAdminRoutes);
 app.use('/api/donor/events', eventRoutes);
 
@@ -65,7 +64,11 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 
-connectDB().then(() => {
-  app.listen(PORT, () => console.log(`Legash API running on port ${PORT}`));
-  startAutoCloseJob();
-});
+if (process.env.NODE_ENV !== 'test') {
+  connectDB().then(() => {
+    app.listen(PORT, () => console.log(`Legash API running on port ${PORT}`));
+    startAutoCloseJob();
+  });
+}
+
+module.exports = app;
