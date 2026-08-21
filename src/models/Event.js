@@ -1,40 +1,53 @@
-// Backend/src/models/Feedback.js
 const mongoose = require('mongoose');
 
-const feedbackSchema = new mongoose.Schema(
+const eventSchema = new mongoose.Schema(
   {
-    hospital: {
+    mediaUrl: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    mediaType: {
+      type: String,
+      enum: ['image', 'video'],
+      default: 'image',
+    },
+    description: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    applyLink: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    closesAt: {
+      type: Date,
+      required: true,
+    },
+    createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Hospital',
+      refPath: 'creatorModel',
       default: null,
     },
-    email: {
+    creatorModel: {
       type: String,
-      required: true,
-      trim: true,
-      lowercase: true,
-    },
-    hospitalName: {
-      type: String,
-      trim: true,
-      default: 'Hospital',
-    },
-    message: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    rejectionReason: {
-      type: String,
-      default: null,
-    },
-    status: {
-      type: String,
-      enum: ['new', 'reviewed', 'closed'],
-      default: 'new',
+      enum: ['SuperAdmin', 'Admin'],
+      default: 'SuperAdmin',
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
 
-module.exports = mongoose.model('Feedback', feedbackSchema);
+// Virtual getter for dynamically calculated status
+eventSchema.virtual('status').get(function () {
+  if (!this.closesAt) return 'open';
+  return new Date() < new Date(this.closesAt) ? 'open' : 'closed';
+});
+
+module.exports = mongoose.model('Event', eventSchema);
