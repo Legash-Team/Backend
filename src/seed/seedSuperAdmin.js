@@ -6,34 +6,46 @@
 // duplicate. Use a real strong password in your local .env before running this, never a
 // placeholder — it becomes a live login credential the moment this script runs.
 
+
 require('dotenv').config();
-const _mongoose = require('mongoose');
+const mongoose = require('mongoose');
 const connectDB = require('../config/db');
 const SuperAdmin = require('../models/SuperAdmin');
 const { hashPassword } = require('../utils/hashPassword');
 
-async function seed() {
+async function seedSuperAdmin() {
   await connectDB();
 
-  const existing = await SuperAdmin.findOne({ email: process.env.SUPERADMIN_EMAIL });
+  const superAdminEmail = (process.env.SUPERADMIN_EMAIL || 'admin@legash.org').toLowerCase().trim();
+  const superAdminName = process.env.SUPERADMIN_NAME || 'Super Administrator';
+  const superAdminPassword = process.env.SUPERADMIN_PASSWORD || 'SuperAdminSecurePass123!';
+
+  const existing = await SuperAdmin.findOne({ email: superAdminEmail });
   if (existing) {
-    console.log('Super Admin already exists — nothing to do.');
+    console.log(`✅ Super Admin already exists (${superAdminEmail}) — nothing to do.`);
     process.exit(0);
   }
 
-  const passwordHash = await hashPassword(process.env.SUPERADMIN_PASSWORD);
+  const passwordHash = await hashPassword(superAdminPassword);
 
   await SuperAdmin.create({
-    name: process.env.SUPERADMIN_NAME,
-    email: process.env.SUPERADMIN_EMAIL,
+    name: superAdminName,
+    email: superAdminEmail,
     passwordHash,
   });
 
-  console.log(`Super Admin created: ${process.env.SUPERADMIN_EMAIL}`);
+  console.log(`\n========================================`);
+  console.log(`🎉 ROOT SUPER ADMIN CREATED SUCCESSFULLY`);
+  console.log(`========================================`);
+  console.log(`👤 Name:     ${superAdminName}`);
+  console.log(`📧 Email:    ${superAdminEmail}`);
+  console.log(`🔑 Password: ${superAdminPassword}`);
+  console.log(`========================================\n`);
+
   process.exit(0);
 }
 
-seed().catch((err) => {
-  console.error('Seeding failed:', err);
+seedSuperAdmin().catch((err) => {
+  console.error('❌ Super Admin seeding failed:', err);
   process.exit(1);
 });
