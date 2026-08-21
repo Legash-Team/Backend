@@ -11,12 +11,16 @@
   },
   "servers": [
     {
-      "url": "http://localhost:3000",
-      "description": "Local Development Server"
+      "url": "/",
+      "description": "Current Host Server"
     },
     {
-      "url": "https://api.legash.org",
-      "description": "Production Gateway"
+      "url": "https://backend-qifm.onrender.com",
+      "description": "Render Production Server"
+    },
+    {
+      "url": "http://localhost:3000",
+      "description": "Local Development Server"
     }
   ],
   "tags": [
