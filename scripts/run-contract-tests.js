@@ -66,7 +66,6 @@ app.use(express.json());
 const hospitalAuthRoutes = require('../src/routes/hospitalAuthRoutes');
 const sharedAuthRoutes = require('../src/routes/sharedAuthRoutes');
 const donorAuthRoutes = require('../src/routes/donorAuthRoutes');
-const inventoryRoutes = require('../src/routes/inventoryRoutes');
 const errorHandler = require('../src/middleware/errorHandler');
 
 // Real Backend Routes
@@ -75,7 +74,6 @@ app.use('/api/hospitals', hospitalAuthRoutes);
 app.use('/api/auth', sharedAuthRoutes);
 app.use('/api/donor', donorAuthRoutes);
 app.use('/v1/donor', donorAuthRoutes);
-app.use('/v1/inventory', inventoryRoutes);
 
 // Stubs for Future Roadmap Modules (Modules 4, 5, 6)
 app.post('/v1/blood-center/register', (req, res) => res.status(201).json({ success: true, centerId: "60d5f22233445566778899aa", data: { centerId: "60d5f22233445566778899aa" } }));

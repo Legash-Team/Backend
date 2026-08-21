@@ -25,7 +25,6 @@ const swaggerSpec = require('./src/config/swagger');
 const hospitalAuthRoutes = require('./src/routes/hospitalAuthRoutes');
 const sharedAuthRoutes = require('./src/routes/sharedAuthRoutes');
 const donorAuthRoutes = require('./src/routes/donorAuthRoutes');
-const inventoryRoutes = require('./src/routes/inventoryRoutes');
 const superAdminRoutes = require('./src/routes/superAdminRoutes');
 const eventRoutes = require('./src/routes/eventRoutes');
 const bloodRequestRoutes = require('./src/routes/bloodRequestRoutes');
@@ -33,7 +32,7 @@ const donorNotificationRoutes = require('./src/routes/donorNotificationRoutes');
 const donorNotificationController = require('./src/controllers/donorNotificationController');
 const verifyToken = require('./src/middleware/authMiddleware');
 const requireRole = require('./src/middleware/requireRole');
-const startAutoCloseJob = require('./src/jobs/autoCloseBloodRequests');
+const { startAutoCloseJob } = require('./src/jobs/autoCloseBloodRequests');
 
 const app = express();
 

@@ -41,7 +41,7 @@ const bloodRequestSchema = new mongoose.Schema(
     },
     closedReason: {
       type: String,
-      enum: ['fulfilled', 'cancelled', 'expired', 'manual', null],
+      enum: ['fulfilled', 'cancelled', 'expired', 'auto-expired', 'manual', null],
       default: null,
     },
   },
