@@ -22,7 +22,7 @@ async function seedSuperAdmin() {
 
   const existing = await SuperAdmin.findOne({ email: superAdminEmail });
   if (existing) {
-    console.log(`✅ Super Admin already exists (${superAdminEmail}) — nothing to do.`);
+    console.log(`Super Admin already exists (${superAdminEmail}) — nothing to do.`);
     process.exit(0);
   }
 
@@ -35,17 +35,17 @@ async function seedSuperAdmin() {
   });
 
   console.log(`\n========================================`);
-  console.log(`🎉 ROOT SUPER ADMIN CREATED SUCCESSFULLY`);
+  console.log(`ROOT SUPER ADMIN CREATED SUCCESSFULLY`);
   console.log(`========================================`);
-  console.log(`👤 Name:     ${superAdminName}`);
-  console.log(`📧 Email:    ${superAdminEmail}`);
-  console.log(`🔑 Password: ${superAdminPassword}`);
+  console.log(`Name:     ${superAdminName}`);
+  console.log(`Email:    ${superAdminEmail}`);
+  console.log(`Password: ${superAdminPassword}`);
   console.log(`========================================\n`);
 
   process.exit(0);
 }
 
 seedSuperAdmin().catch((err) => {
-  console.error('❌ Super Admin seeding failed:', err);
+  console.error('Super Admin seeding failed:', err);
   process.exit(1);
 });

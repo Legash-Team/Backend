@@ -21,6 +21,9 @@ router.delete('/profile', hospitalController.deleteAccount);
 router.get('/blood-stock', hospitalController.getBloodStock);
 router.put('/blood-stock/:bloodType', hospitalController.updateBloodStock);
 
+// Hospital-to-Hospital Search
+router.get('/search', hospitalController.searchHospitals);
+
 // Blood Requests
 router.post('/blood-requests', bloodRequestController.create);
 router.get('/blood-requests', bloodRequestController.list);

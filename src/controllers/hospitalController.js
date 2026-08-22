@@ -122,7 +122,7 @@ exports.requestEmailChange = async (req, res, next) => {
     try {
       await sendVerificationEmail(cleanEmail, code);
     } catch (err) {
-      console.warn('⚠️ SMTP Error:', err.message);
+      console.warn('[WARN] SMTP Error:', err.message);
     }
 
     return res.status(200).json({
@@ -312,6 +312,77 @@ exports.updateBloodStock = async (req, res, next) => {
       bloodType,
       availableUnits: stockItem.availableUnits,
       bloodStock: hospital.bloodStock,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/hospital/search?bloodType=A%2B&quantity=5
+exports.searchHospitals = async (req, res, next) => {
+  try {
+    const { bloodType, quantity } = req.query;
+
+    if (!bloodType || !VALID_BLOOD_TYPES.includes(bloodType)) {
+      return res.status(400).json({
+        success: false,
+        error: `Valid bloodType is required. Allowed types: ${VALID_BLOOD_TYPES.join(', ')}`,
+      });
+    }
+
+    const minQty = quantity ? Number(quantity) : 0;
+    if (isNaN(minQty) || minQty < 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Quantity must be a positive number.',
+      });
+    }
+
+    // Find all approved hospitals that are not deleted and not the current hospital
+    const query = {
+      _id: { $ne: req.user.id },
+      verificationStatus: 'approved',
+      isDeleted: { $ne: true },
+      'bloodStock.bloodType': bloodType,
+    };
+
+    // If a minimum quantity was specified, we can query hospitals that have some stock
+    // But since the requirement says "a hospital with fewer kits than requested can still appear in results",
+    // we query hospitals where availableUnits > 0.
+    query['bloodStock'] = {
+      $elemMatch: {
+        bloodType,
+        availableUnits: { $gt: 0 },
+      },
+    };
+
+    const hospitals = await Hospital.find(query);
+
+    const results = hospitals.map((h) => {
+      const lat = h.location?.coordinates?.[1] ?? null;
+      const lng = h.location?.coordinates?.[0] ?? null;
+
+      return {
+        id: h._id,
+        name: h.hospitalName || h.name,
+        email: h.email,
+        phone: h.phone,
+        licenseNumber: h.licenseNumber,
+        location: {
+          lat,
+          lng,
+          address: h.location?.address || '',
+        },
+        // We do NOT expose the exact availableUnits to prevent data leakage!
+        // Just return that it is in stock or available.
+        hasStock: true,
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      results,
+      hospitals: results,
     });
   } catch (error) {
     next(error);

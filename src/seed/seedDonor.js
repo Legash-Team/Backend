@@ -30,21 +30,21 @@ async function seedDonor() {
         coordinates: [38.7613, 9.0108]
       },
       agreedToTerms: true,
-      phoneVerified: true // ★ Pre-verified so NO OTP is required
+      phoneVerified: true // Pre-verified so NO OTP is required
     });
 
     console.log('\n========================================');
-    console.log('✅ TEST DONOR CREATED SUCCESSFULLY');
+    console.log('TEST DONOR CREATED SUCCESSFULLY');
     console.log('========================================');
-    console.log(`📱 Phone:    ${donor.phone}`);
-    console.log(`🔑 Password: ${plainPassword}`);
-    console.log(`🆔 Donor ID: ${donor._id}`);
-    console.log(`✔️  Verified: ${donor.phoneVerified}`);
+    console.log(`Phone:    ${donor.phone}`);
+    console.log(`Password: ${plainPassword}`);
+    console.log(`Donor ID: ${donor._id}`);
+    console.log(`Verified: ${donor.phoneVerified}`);
     console.log('========================================\n');
 
     process.exit(0);
   } catch (error) {
-    console.error('❌ Seeding failed:', error);
+    console.error('Seeding failed:', error);
     process.exit(1);
   }
 }

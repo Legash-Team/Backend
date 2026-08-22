@@ -13,7 +13,7 @@ const CONTRACT_PATH = CONTRACT_PATH_CANDIDATES.find((candidate) => fs.existsSync
 
 if (!CONTRACT_PATH) {
   console.error(
-    `❌ Contract file not found. Checked:\n  - ${CONTRACT_PATH_CANDIDATES.join('\n  - ')}`
+    `[ERROR] Contract file not found. Checked:\n  - ${CONTRACT_PATH_CANDIDATES.join('\n  - ')}`
   );
   process.exit(1);
 }

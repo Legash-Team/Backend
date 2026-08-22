@@ -77,7 +77,7 @@ exports.registerHospital = async (req, res, next) => {
     try {
       await sendVerificationEmail(hospital.email, code);
     } catch (emailErr) {
-      console.warn('⚠️ SMTP Email dispatch error:', emailErr.message);
+      console.warn('[WARN] SMTP Email dispatch error:', emailErr.message);
     }
 
     return res.status(201).json({
@@ -171,7 +171,7 @@ exports.resendEmailCode = async (req, res, next) => {
       try {
         await sendVerificationEmail(hospital.email, code);
       } catch (err) {
-        console.warn('⚠️ SMTP Email dispatch error:', err.message);
+        console.warn('[WARN] SMTP Email dispatch error:', err.message);
       }
     }
 

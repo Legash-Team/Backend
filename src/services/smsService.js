@@ -13,6 +13,11 @@ async function sendOtp(phone) {
   donor.resetCodeExpiresAt = expiresAt;
   await donor.save();
 
+  if (process.env.NODE_ENV === 'test' || !process.env.SMS_GATEWAY_BASE_URL || process.env.SMS_GATEWAY_BASE_URL.includes('example')) {
+    console.log(`\n[SMS MOCK] OTP sent to ${phone}: ${code}\n`);
+    return;
+  }
+
   const response = await fetch(`${process.env.SMS_GATEWAY_BASE_URL}/api/v1/sms/send`, {
     method: 'POST',
     headers: {
@@ -43,6 +48,12 @@ async function verifyOtp(phone, code) {
 
 async function sendBloodAlertSms(phone, { hospitalName, bloodType, quantityNeeded }) {
   const message = `Legash: ${hospitalName} needs ${bloodType} blood. Open the app to respond.`;
+  
+  if (process.env.NODE_ENV === 'test' || !process.env.SMS_GATEWAY_BASE_URL || process.env.SMS_GATEWAY_BASE_URL.includes('example')) {
+    console.log(`\n[SMS MOCK] Blood Alert SMS sent to ${phone}: ${message}\n`);
+    return;
+  }
+
   const response = await fetch(`${process.env.SMS_GATEWAY_BASE_URL}/api/v1/sms/send`, {
     method: 'POST',
     headers: {
