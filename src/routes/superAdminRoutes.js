@@ -146,6 +146,27 @@ router.get('/admins', verifyToken, requireRole('superadmin'), superAdminControll
 
 /**
  * @swagger
+ * /superadmin/admins/{id}:
+ *   delete:
+ *     summary: Soft delete an Admin account
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Admin deleted
+ *       404:
+ *         description: Admin not found
+ */
+router.delete('/admins/:id', verifyToken, requireRole('superadmin'), superAdminController.deleteAdmin);
+
+/**
+ * @swagger
  * /superadmin/admins/verify-otp:
  *   post:
  *     summary: Verify Admin OTP

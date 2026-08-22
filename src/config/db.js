@@ -9,9 +9,7 @@ async function connectDB() {
   }
 
   try {
-    const conn = await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 5000, // Timeout fast if Atlas IP whitelist is missing
-    });
+    const conn = await mongoose.connect(uri);
     console.log(`✅ MongoDB Atlas connected: ${conn.connection.host}`);
   } catch (err) {
     console.error('❌ MongoDB Atlas connection failed:', err.message);

@@ -1,7 +1,5 @@
-// Backend/server.js
 const dns = require('dns');
-// Resolves MongoDB Atlas SRV records reliably across local networks/ISPs
-dns.setServers(['8.8.8.8', '8.8.4.4']);
+// Resolves MongoDB Atlas SRV records (using default system resolver)
 
 const path = require('path');
 const fs = require('fs');

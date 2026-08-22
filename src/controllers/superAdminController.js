@@ -266,24 +266,25 @@ exports.createAdmin = async (req, res, next) => {
       email: cleanEmail,
       permissions: parsedPermissions,
       emailVerified: false,
-      verificationOtp: code,
-      verificationOtpExpiresAt: expiresAt,
+      setupToken: code,
+      setupTokenExpiresAt: expiresAt,
       passwordHash: null,
     });
 
     await admin.save();
 
     try {
-      if (emailService.sendAdminVerificationOtp) {
-        await emailService.sendAdminVerificationOtp(cleanEmail, code);
+      if (emailService.sendAdminSetupEmail) {
+        // Must configure FRONTEND_URL in .env so it links to the correct place
+        await emailService.sendAdminSetupEmail(cleanEmail, code, parsedPermissions);
       }
     } catch (emailErr) {
-      console.warn('⚠️ SMTP Error sending admin verification OTP:', emailErr.message);
+      console.warn('⚠️ SMTP Error sending admin setup email:', emailErr.message);
     }
 
     return res.status(201).json({
       success: true,
-      message: 'Admin created successfully. Verification OTP has been sent.',
+      message: 'Admin created successfully. Setup invitation has been sent.',
       admin: {
         id: admin._id,
         name: admin.name,
@@ -300,7 +301,7 @@ exports.createAdmin = async (req, res, next) => {
 
 exports.listAdmins = async (req, res, next) => {
   try {
-    const admins = await Admin.find().sort({ createdAt: -1 });
+    const admins = await Admin.find({ isDeleted: { $ne: true } }).sort({ createdAt: -1 });
 
     const formattedAdmins = admins.map((admin) => ({
       id: admin._id,
@@ -372,6 +373,19 @@ exports.verifyAdminOtp = async (req, res, next) => {
       success: true,
       message: 'Admin email verified successfully. You can now set up your password.',
     });
+  } catch (error) {
+    next(error);
+  }
+};
+exports.deleteAdmin = async (req, res, next) => {
+  try {
+    const admin = await Admin.findById(req.params.id);
+    if (!admin) {
+      return res.status(404).json({ success: false, error: 'Admin not found.' });
+    }
+    admin.isDeleted = true;
+    await admin.save();
+    return res.status(200).json({ success: true, message: 'Admin deleted successfully.' });
   } catch (error) {
     next(error);
   }
