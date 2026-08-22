@@ -11,35 +11,16 @@ exports.registerHospital = async (req, res, next) => {
     const { hospitalName, name, email, password, phone, licenseNumber, location, agreedToTerms } = req.body;
     const finalName = hospitalName || name;
     const cleanEmail = email ? email.toLowerCase().trim() : '';
+    const cleanPhone = phone ? phone.trim() : '';
+    const cleanLicense = licenseNumber ? licenseNumber.trim() : '';
 
     const existingHospital = await Hospital.findOne({
       $or: [
         { email: cleanEmail },
-        { phone: phone ? phone.trim() : '' },
-        { licenseNumber: licenseNumber ? licenseNumber.trim() : '' },
+        { phone: cleanPhone },
+        { licenseNumber: cleanLicense },
       ],
     });
-
-    if (existingHospital) {
-      if (existingHospital.email === cleanEmail) {
-        return res.status(409).json({
-          success: false,
-          error: 'A hospital with this email is already registered.',
-        });
-      }
-      if (existingHospital.phone === (phone ? phone.trim() : '')) {
-        return res.status(409).json({
-          success: false,
-          error: 'A hospital with this phone number is already registered.',
-        });
-      }
-      if (existingHospital.licenseNumber === (licenseNumber ? licenseNumber.trim() : '')) {
-        return res.status(409).json({
-          success: false,
-          error: 'A hospital with this license number is already registered.',
-        });
-      }
-    }
 
     let coordinates = [38.75, 9.03];
     if (location) {
@@ -53,12 +34,63 @@ exports.registerHospital = async (req, res, next) => {
     const hashedPassword = await hashPassword(password);
     const { code, expiresAt } = generateResetCode();
 
+    if (existingHospital) {
+      // If the hospital is not yet email-verified, allow updating and re-sending OTP
+      if (existingHospital.email === cleanEmail && !existingHospital.emailVerified) {
+        existingHospital.hospitalName = finalName.trim();
+        existingHospital.passwordHash = hashedPassword;
+        existingHospital.phone = cleanPhone;
+        existingHospital.licenseNumber = cleanLicense;
+        existingHospital.location = {
+          type: 'Point',
+          coordinates,
+          address: location?.address || 'Addis Ababa, Ethiopia',
+        };
+        existingHospital.verificationOtp = code;
+        existingHospital.verificationOtpExpiresAt = expiresAt;
+        existingHospital.verificationOtpLastSentAt = new Date();
+
+        await existingHospital.save();
+
+        // Dispatch email asynchronously in background
+        sendVerificationEmail(existingHospital.email, code).catch((err) => {
+          console.warn('[WARN] Background email dispatch error:', err.message);
+        });
+
+        return res.status(200).json({
+          success: true,
+          message: 'Account updated. Verification code sent to your email.',
+          hospitalId: existingHospital._id.toString(),
+          requiresVerification: true,
+        });
+      }
+
+      if (existingHospital.email === cleanEmail) {
+        return res.status(409).json({
+          success: false,
+          error: 'A hospital with this email is already registered.',
+        });
+      }
+      if (existingHospital.phone === cleanPhone) {
+        return res.status(409).json({
+          success: false,
+          error: 'A hospital with this phone number is already registered.',
+        });
+      }
+      if (existingHospital.licenseNumber === cleanLicense) {
+        return res.status(409).json({
+          success: false,
+          error: 'A hospital with this license number is already registered.',
+        });
+      }
+    }
+
     const hospital = new Hospital({
       hospitalName: finalName.trim(),
       email: cleanEmail,
       passwordHash: hashedPassword,
-      phone: phone.trim(),
-      licenseNumber: licenseNumber.trim(),
+      phone: cleanPhone,
+      licenseNumber: cleanLicense,
       location: {
         type: 'Point',
         coordinates,
@@ -74,11 +106,10 @@ exports.registerHospital = async (req, res, next) => {
 
     await hospital.save();
 
-    try {
-      await sendVerificationEmail(hospital.email, code);
-    } catch (emailErr) {
-      console.warn('[WARN] SMTP Email dispatch error:', emailErr.message);
-    }
+    // Dispatch email asynchronously in background so client receives immediate HTTP 201
+    sendVerificationEmail(hospital.email, code).catch((emailErr) => {
+      console.warn('[WARN] Background email dispatch error:', emailErr.message);
+    });
 
     return res.status(201).json({
       success: true,
@@ -168,11 +199,10 @@ exports.resendEmailCode = async (req, res, next) => {
       hospital.verificationOtpLastSentAt = now;
       await hospital.save();
 
-      try {
-        await sendVerificationEmail(hospital.email, code);
-      } catch (err) {
-        console.warn('[WARN] SMTP Email dispatch error:', err.message);
-      }
+      // Dispatch email asynchronously
+      sendVerificationEmail(hospital.email, code).catch((err) => {
+        console.warn('[WARN] Background email dispatch error:', err.message);
+      });
     }
 
     return res.status(200).json({
