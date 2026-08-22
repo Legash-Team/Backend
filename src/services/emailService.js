@@ -33,6 +33,11 @@ async function sendVerificationEmail(toEmail, code) {
 }
 
 async function sendPasswordResetEmail(toEmail, resetCode) {
+  if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example') || process.env.NODE_ENV === 'test') {
+    console.log(`\n📧 [EMAIL MOCK] Password reset email for ${toEmail}:`);
+    console.log(`👉 Reset Code: ${resetCode}\n`);
+    return;
+  }
   await transporter.sendMail({
     from: process.env.EMAIL_FROM,
     to: toEmail,
