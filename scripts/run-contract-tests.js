@@ -54,7 +54,7 @@ const COLLECTION_CANDIDATES = [
 const COLLECTION_PATH = COLLECTION_CANDIDATES.find((candidate) => fs.existsSync(candidate));
 
 if (!COLLECTION_PATH) {
-  console.error(`❌ Postman collection not found. Checked:\n  - ${COLLECTION_CANDIDATES.join('\n  - ')}`);
+  console.error(`[ERROR] Postman collection not found. Checked:\n  - ${COLLECTION_CANDIDATES.join('\n  - ')}`);
   process.exit(1);
 }
 
@@ -109,8 +109,8 @@ async function runE2EContractTests() {
       const assignedPort = server.address().port;
       const testBaseUrl = `http://127.0.0.1:${assignedPort}`;
 
-      console.log(`🚀 Automated Test Server listening on: ${testBaseUrl}`);
-      console.log(`📦 Running Newman against: ${COLLECTION_PATH}\n`);
+      console.log(`[RUN] Automated Test Server listening on: ${testBaseUrl}`);
+      console.log(`[INFO] Running Newman against: ${COLLECTION_PATH}\n`);
 
       newman.run(
         {
@@ -123,10 +123,10 @@ async function runE2EContractTests() {
           await mongoose.disconnect();
 
           if (err || (summary && summary.run.failures.length > 0)) {
-            console.error('\n❌ E2E Contract tests FAILED.');
+            console.error('\n[ERROR] E2E Contract tests FAILED.');
             process.exit(1);
           } else {
-            console.log('\n✅ All 23 E2E Contract tests PASSED successfully.');
+            console.log('\n[SUCCESS] All 23 E2E Contract tests PASSED successfully.');
             process.exit(0);
           }
         }

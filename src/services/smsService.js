@@ -14,7 +14,7 @@ async function sendOtp(phone) {
   await donor.save();
 
   if (process.env.NODE_ENV === 'test' || !process.env.SMS_GATEWAY_BASE_URL || process.env.SMS_GATEWAY_BASE_URL.includes('example')) {
-    console.log(`\n💬 [SMS MOCK] OTP sent to ${phone}: ${code}\n`);
+    console.log(`\n[SMS MOCK] OTP sent to ${phone}: ${code}\n`);
     return;
   }
 
@@ -50,7 +50,7 @@ async function sendBloodAlertSms(phone, { hospitalName, bloodType, quantityNeede
   const message = `Legash: ${hospitalName} needs ${bloodType} blood. Open the app to respond.`;
   
   if (process.env.NODE_ENV === 'test' || !process.env.SMS_GATEWAY_BASE_URL || process.env.SMS_GATEWAY_BASE_URL.includes('example')) {
-    console.log(`\n💬 [SMS MOCK] Blood Alert SMS sent to ${phone}: ${message}\n`);
+    console.log(`\n[SMS MOCK] Blood Alert SMS sent to ${phone}: ${message}\n`);
     return;
   }
 

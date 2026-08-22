@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const verifyToken = require('../middleware/authMiddleware');
 const requireRole = require('../middleware/requireRole');
+const requirePermission = require('../middleware/requirePermission');
 const superAdminController = require('../controllers/superAdminController');
 
 /**
@@ -18,9 +19,9 @@ const superAdminController = require('../controllers/superAdminController');
  *       401:
  *         description: No or invalid token
  *       403:
- *         description: Valid token but not a Super Admin
+ *         description: Forbidden
  */
-router.get('/hospitals/pending', verifyToken, requireRole('superadmin'), superAdminController.listPendingHospitals);
+router.get('/hospitals/pending', verifyToken, requirePermission('canApproveHospitals'), superAdminController.listPendingHospitals);
 
 /**
  * @swagger
@@ -45,7 +46,7 @@ router.get('/hospitals/pending', verifyToken, requireRole('superadmin'), superAd
  *       403:
  *         description: Valid token but not a Super Admin
  */
-router.post('/hospitals/:id/approve', verifyToken, requireRole('superadmin'), superAdminController.approveHospital);
+router.post('/hospitals/:id/approve', verifyToken, requirePermission('canApproveHospitals'), superAdminController.approveHospital);
 
 /**
  * @swagger
@@ -79,9 +80,9 @@ router.post('/hospitals/:id/approve', verifyToken, requireRole('superadmin'), su
  *       401:
  *         description: No or invalid token
  *       403:
- *         description: Valid token but not a Super Admin
+ *         description: Forbidden
  */
-router.post('/hospitals/:id/reject', verifyToken, requireRole('superadmin'), superAdminController.rejectHospital);
+router.post('/hospitals/:id/reject', verifyToken, requirePermission('canApproveHospitals'), superAdminController.rejectHospital);
 
 /**
  * @swagger
@@ -209,7 +210,23 @@ router.post('/admins/verify-otp', superAdminController.verifyAdminOtp);
  *       403:
  *         description: Forbidden (Super Admin only)
  */
-router.get('/feedbacks', verifyToken, requireRole('superadmin'), superAdminController.listFeedbacks);
+/**
+ * @swagger
+ * /superadmin/feedbacks:
+ *   get:
+ *     summary: List all hospital appeal feedbacks
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of feedbacks
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ */
+router.get('/feedbacks', verifyToken, requirePermission('canApproveHospitals'), superAdminController.listFeedbacks);
 
 /**
  * @swagger
@@ -232,9 +249,9 @@ router.get('/feedbacks', verifyToken, requireRole('superadmin'), superAdminContr
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: Forbidden (Super Admin only)
+ *         description: Forbidden
  */
-router.patch('/feedbacks/:id/reviewed', verifyToken, requireRole('superadmin'), superAdminController.markFeedbackReviewed);
+router.patch('/feedbacks/:id/reviewed', verifyToken, requirePermission('canApproveHospitals'), superAdminController.markFeedbackReviewed);
 
 /**
  * @swagger
@@ -269,7 +286,7 @@ router.patch('/feedbacks/:id/reviewed', verifyToken, requireRole('superadmin'), 
  *       200:
  *         description: List of events
  */
-router.post('/events', verifyToken, requireRole('superadmin'), superAdminController.createEvent);
-router.get('/events', verifyToken, requireRole('superadmin'), superAdminController.listAdminEvents);
+router.post('/events', verifyToken, requirePermission('canPostEvents'), superAdminController.createEvent);
+router.get('/events', verifyToken, requirePermission('canPostEvents'), superAdminController.listAdminEvents);
 
 module.exports = router;

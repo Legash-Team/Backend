@@ -1518,7 +1518,7 @@
       "listen": "prerequest",
       "script": {
         "exec": [
-          "console.log(`🚀 ${pm.info.requestName} - ${pm.request.method} ${pm.request.url.toString()}`);"
+          "console.log(`${pm.info.requestName} - ${pm.request.method} ${pm.request.url.toString()}`);"
         ],
         "type": "text/javascript"
       }

@@ -18,8 +18,8 @@ const transporter = nodemailer.createTransport({
 
 async function sendVerificationEmail(toEmail, code) {
   if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example') || process.env.NODE_ENV === 'test') {
-    console.log(`\n📧 [EMAIL MOCK] Verification OTP email for ${toEmail}:`);
-    console.log(`👉 Your Legash hospital verification code is: ${code}\n`);
+    console.log(`\n[EMAIL MOCK] Verification OTP email for ${toEmail}:`);
+    console.log(`  Your Legash hospital verification code is: ${code}\n`);
     return;
   }
   await transporter.sendMail({
@@ -34,8 +34,8 @@ async function sendVerificationEmail(toEmail, code) {
 
 async function sendPasswordResetEmail(toEmail, resetCode) {
   if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example') || process.env.NODE_ENV === 'test') {
-    console.log(`\n📧 [EMAIL MOCK] Password reset email for ${toEmail}:`);
-    console.log(`👉 Reset Code: ${resetCode}\n`);
+    console.log(`\n[EMAIL MOCK] Password reset email for ${toEmail}:`);
+    console.log(`  Reset Code: ${resetCode}\n`);
     return;
   }
   await transporter.sendMail({
@@ -50,8 +50,8 @@ async function sendPasswordResetEmail(toEmail, resetCode) {
 
 async function sendApprovalEmail(toEmail) {
   if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example')) {
-    console.log(`\n📧 [EMAIL MOCK] Approval email for ${toEmail}:`);
-    console.log(`👉 Your Legash hospital account has been approved. You can now log in.\n`);
+    console.log(`\n[EMAIL MOCK] Approval email for ${toEmail}:`);
+    console.log(`  Your Legash hospital account has been approved. You can now log in.\n`);
     return;
   }
   await transporter.sendMail({
@@ -63,27 +63,32 @@ async function sendApprovalEmail(toEmail) {
 }
 
 async function sendRejectionEmail(toEmail, reason) {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const appealLink = `${frontendUrl}/appeal?email=${encodeURIComponent(toEmail)}`;
   const reasonText = reason ? `\nReason: ${reason}` : '';
-  if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example')) {
-    console.log(`\n📧 [EMAIL MOCK] Rejection email for ${toEmail}:`);
-    console.log(`👉 Your Legash hospital registration was not approved.${reasonText} You can submit an appeal or contact support.\n`);
+
+  if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example') || process.env.NODE_ENV === 'test') {
+    console.log(`\n[EMAIL MOCK] Rejection email for ${toEmail}:`);
+    console.log(`  Your Legash hospital registration was not approved.${reasonText}`);
+    console.log(`  You can submit an appeal or inquiry here: ${appealLink}\n`);
     return;
   }
   const reasonHtml = reason ? `<p><strong>Reason for rejection:</strong> ${reason}</p>` : '';
   await transporter.sendMail({
-    from: process.env.EMAIL_FROM,
+    from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
     to: toEmail,
     subject: 'Legash Hospital Registration Update',
     html: `<p>Your Legash hospital registration was not approved.</p>
            ${reasonHtml}
-           <p>If you believe this was an error, you can submit an appeal or contact support <a href="mailto:support@legash.com">here</a>.</p>`,
+           <p>If you believe this was an error, you can submit an appeal or inquiry <a href="${appealLink}">here</a>.</p>
+           <p>Appeal Page URL: <a href="${appealLink}">${appealLink}</a></p>`,
   });
 }
 
 async function sendAdminVerificationOtp(toEmail, otp) {
   if (!process.env.EMAIL_USER || process.env.EMAIL_USER.includes('example')) {
-    console.log(`\n📧 [EMAIL MOCK] Admin OTP email for ${toEmail}:`);
-    console.log(`👉 Your Legash Admin verification code is: ${otp}\n`);
+    console.log(`\n[EMAIL MOCK] Admin OTP email for ${toEmail}:`);
+    console.log(`  Your Legash Admin verification code is: ${otp}\n`);
     return;
   }
   await transporter.sendMail({
@@ -105,9 +110,9 @@ async function sendAdminSetupEmail(toEmail, setupToken, permissions) {
     process.env.NODE_ENV === 'test';
 
   if (isDevOrTest) {
-    console.log(`\n📧 [EMAIL MOCK] Admin Setup Invitation sent to ${toEmail}:`);
-    console.log(`👉 Permissions: ${JSON.stringify(permissions)}`);
-    console.log(`👉 Setup Link: ${setupLink}\n`);
+    console.log(`\n[EMAIL MOCK] Admin Setup Invitation sent to ${toEmail}:`);
+    console.log(`  Permissions: ${JSON.stringify(permissions)}`);
+    console.log(`  Setup Link: ${setupLink}\n`);
     return;
   }
 

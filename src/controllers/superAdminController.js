@@ -67,7 +67,7 @@ exports.approveHospital = async (req, res, next) => {
     try {
       await emailService.sendApprovalEmail(hospital.email);
     } catch (emailErr) {
-      console.warn('⚠️ SMTP Error sending approval email:', emailErr.message);
+      console.warn('[WARN] SMTP Error sending approval email:', emailErr.message);
     }
 
     return res.status(200).json({
@@ -117,7 +117,7 @@ exports.rejectHospital = async (req, res, next) => {
     try {
       await emailService.sendRejectionEmail(hospital.email, finalReason);
     } catch (emailErr) {
-      console.warn('⚠️ SMTP Error sending rejection email:', emailErr.message);
+      console.warn('[WARN] SMTP Error sending rejection email:', emailErr.message);
     }
 
     return res.status(200).json({
@@ -131,10 +131,28 @@ exports.rejectHospital = async (req, res, next) => {
 
 exports.listFeedbacks = async (req, res, next) => {
   try {
-    const feedbacks = await Feedback.find().sort({ createdAt: -1 });
+    const feedbacks = await Feedback.find()
+      .populate('hospital', 'hospitalName email phone licenseNumber location verificationStatus createdAt')
+      .sort({ createdAt: -1 });
+
+    const formatted = await Promise.all(
+      feedbacks.map(async (fb) => {
+        const obj = fb.toObject();
+        if (!obj.hospital) {
+          const hosp = await Hospital.findOne({ email: obj.email }).select(
+            'hospitalName email phone licenseNumber location verificationStatus createdAt'
+          );
+          if (hosp) {
+            obj.hospital = hosp;
+          }
+        }
+        return obj;
+      })
+    );
+
     return res.status(200).json({
       success: true,
-      feedbacks,
+      feedbacks: formatted,
     });
   } catch (error) {
     next(error);
@@ -279,7 +297,7 @@ exports.createAdmin = async (req, res, next) => {
         await emailService.sendAdminSetupEmail(cleanEmail, code, parsedPermissions);
       }
     } catch (emailErr) {
-      console.warn('⚠️ SMTP Error sending admin setup email:', emailErr.message);
+      console.warn('[WARN] SMTP Error sending admin setup email:', emailErr.message);
     }
 
     return res.status(201).json({

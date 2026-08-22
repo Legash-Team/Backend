@@ -122,7 +122,7 @@ exports.requestEmailChange = async (req, res, next) => {
     try {
       await sendVerificationEmail(cleanEmail, code);
     } catch (err) {
-      console.warn('⚠️ SMTP Error:', err.message);
+      console.warn('[WARN] SMTP Error:', err.message);
     }
 
     return res.status(200).json({

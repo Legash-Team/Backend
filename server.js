@@ -4,18 +4,7 @@ const dns = require('dns');
 const path = require('path');
 const fs = require('fs');
 
-// Attempt to load .env from Backend/ or project root
-const envPaths = [
-  path.join(__dirname, '.env'),
-  path.join(__dirname, '../.env'),
-];
-
-for (const envPath of envPaths) {
-  if (fs.existsSync(envPath)) {
-    require('dotenv').config({ path: envPath });
-    break;
-  }
-}
+require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
@@ -154,8 +143,8 @@ const PORT = process.env.PORT || 3000;
 if (process.env.NODE_ENV !== 'test') {
   connectDB().then(() => {
     app.listen(PORT, () => {
-      console.log(`🚀 Legash API running on port ${PORT}`);
-      console.log(`📖 Swagger Docs: http://localhost:${PORT}/api-docs`);
+      console.log(`Legash API running on port ${PORT}`);
+      console.log(`Swagger Docs: http://localhost:${PORT}/api-docs`);
     });
     startAutoCloseJob();
   });

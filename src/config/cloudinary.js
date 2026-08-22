@@ -13,7 +13,7 @@ if (isCloudinaryConfigured) {
     api_secret: process.env.CLOUDINARY_API_SECRET,
   });
 } else {
-  console.log('⚠️ [CLOUDINARY CONFIG] Credentials missing or example. Operating in MOCK mode.');
+  console.log('[CLOUDINARY CONFIG] Credentials missing or example. Operating in MOCK mode.');
 }
 
 const uploadToCloudinary = (fileBuffer, options = {}) => {

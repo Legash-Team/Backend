@@ -50,7 +50,7 @@ exports.registerDonor = async (req, res, next) => {
     try {
       await sendOtp(donor.phone);
     } catch (err) {
-      console.warn('⚠️ OTP SMS dispatch error:', err.message);
+      console.warn('[WARN] OTP SMS dispatch error:', err.message);
     }
 
     return res.status(201).json({
@@ -115,7 +115,7 @@ exports.resendDonorOtp = async (req, res, next) => {
     try {
       await sendOtp(donor.phone);
     } catch (err) {
-      console.warn('⚠️ OTP SMS dispatch error:', err.message);
+      console.warn('[WARN] OTP SMS dispatch error:', err.message);
     }
 
     return res.status(200).json({
@@ -212,7 +212,7 @@ exports.forgotDonorPin = async (req, res, next) => {
       try {
         await sendOtp(donor.phone);
       } catch (err) {
-        console.warn('⚠️ OTP SMS dispatch error:', err.message);
+        console.warn('[WARN] OTP SMS dispatch error:', err.message);
       }
     }
 
