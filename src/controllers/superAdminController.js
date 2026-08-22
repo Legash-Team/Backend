@@ -284,6 +284,8 @@ exports.createAdmin = async (req, res, next) => {
       email: cleanEmail,
       permissions: parsedPermissions,
       emailVerified: false,
+      verificationOtp: code,
+      verificationOtpExpiresAt: expiresAt,
       setupToken: code,
       setupTokenExpiresAt: expiresAt,
       passwordHash: null,
@@ -292,6 +294,9 @@ exports.createAdmin = async (req, res, next) => {
     await admin.save();
 
     try {
+      if (emailService.sendAdminVerificationOtp) {
+        await emailService.sendAdminVerificationOtp(cleanEmail, code);
+      }
       if (emailService.sendAdminSetupEmail) {
         // Must configure FRONTEND_URL in .env so it links to the correct place
         await emailService.sendAdminSetupEmail(cleanEmail, code, parsedPermissions);
