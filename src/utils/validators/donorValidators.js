@@ -48,6 +48,7 @@ exports.setPin = [
 
 exports.unlock = [
   body('pin').matches(PIN_PATTERN).withMessage('PIN must be exactly 4 digits.'),
+  body('phone').optional().matches(PHONE_PATTERN).withMessage('Phone must be in +251 format.'),
 ];
 
 exports.forgotPin = [

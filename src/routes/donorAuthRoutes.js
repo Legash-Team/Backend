@@ -12,13 +12,13 @@ router.post('/register', donorValidators.register, validateRequest, donorAuthCon
 router.post('/verify-otp', donorValidators.verifyOtp, validateRequest, donorAuthController.verifyDonorOtp);
 router.post('/resend-otp', donorValidators.resendOtp, validateRequest, donorAuthController.resendDonorOtp);
 router.post('/set-pin', donorValidators.setPin, validateRequest, donorAuthController.setDonorPin);
+router.post('/unlock', donorValidators.unlock, validateRequest, donorAuthController.unlockDonor);
 router.post('/forgot-pin', donorValidators.forgotPin, validateRequest, donorAuthController.forgotDonorPin);
 router.post('/reset-pin', donorValidators.resetPin, validateRequest, donorAuthController.resetDonorPin);
 
 // 2. Protected Donor Routes (Requires donor token)
 router.use(verifyToken, requireRole('donor'));
 
-router.post('/unlock', donorValidators.unlock, validateRequest, donorAuthController.unlockDonor);
 router.get('/profile', donorProfileController.getProfile);
 router.put('/profile', donorProfileController.updateProfile);
 router.post('/profile/change-phone/request', donorProfileController.requestPhoneChange);

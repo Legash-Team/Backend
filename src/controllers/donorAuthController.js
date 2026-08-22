@@ -1,5 +1,6 @@
 // Backend/src/controllers/donorAuthController.js
 const Donor = require('../models/Donor');
+const jwt = require('jsonwebtoken');
 const { hashPassword, comparePassword } = require('../utils/hashPassword');
 const { sendOtp, verifyOtp } = require('../services/smsService');
 const generateToken = require('../utils/generateToken');
@@ -13,8 +14,39 @@ exports.registerDonor = async (req, res, next) => {
 
     const existing = await Donor.findOne({ $or: [{ phone: phone.trim() }, { fin: fin.trim() }] });
     if (existing) {
+      // If the existing account was never verified or never had a PIN set, allow completing registration
+      if (!existing.phoneVerified || !existing.pinHash) {
+        if (name) existing.name = name.trim();
+        if (gender) existing.gender = gender;
+        if (bloodType) existing.bloodType = bloodType;
+        if (fin) existing.fin = fin.trim();
+        if (location) {
+          if (Array.isArray(location.coordinates) && location.coordinates.length === 2) {
+            existing.location = { type: 'Point', coordinates: location.coordinates };
+          } else if (typeof location.lat === 'number' && typeof location.lng === 'number') {
+            existing.location = { type: 'Point', coordinates: [location.lng, location.lat] };
+          }
+        }
+        existing.agreedToTerms = agreedToTerms !== undefined ? agreedToTerms : true;
+        existing.lastOtpSentAt = new Date();
+        await existing.save();
+
+        try {
+          await sendOtp(existing.phone);
+        } catch (err) {
+          console.warn('[WARN] OTP SMS dispatch error:', err.message);
+        }
+
+        return res.status(200).json({
+          success: true,
+          message: 'Previous unverified registration found. An OTP has been sent to complete your verification.',
+          donorId: existing._id.toString(),
+          requiresVerification: true,
+        });
+      }
+
       if (existing.phone === phone.trim()) {
-        return res.status(409).json({ success: false, error: 'Phone number already registered.' });
+        return res.status(409).json({ success: false, error: 'Phone number already registered. Please log in with your PIN.' });
       }
       if (existing.fin === fin.trim()) {
         return res.status(409).json({ success: false, error: 'Fayda National ID is already registered.' });
@@ -167,15 +199,41 @@ exports.setDonorPin = async (req, res, next) => {
 
 exports.unlockDonor = async (req, res, next) => {
   try {
-    const { pin } = req.body;
-    const donor = await Donor.findById(req.user.id);
+    const { phone, pin } = req.body;
+    let donor;
+
+    if (phone) {
+      donor = await Donor.findOne({ phone: phone.trim(), isDeleted: { $ne: true } });
+    } else if (req.user?.id) {
+      donor = await Donor.findById(req.user.id);
+    } else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+      try {
+        const token = req.headers.authorization.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (decoded && decoded.id) {
+          donor = await Donor.findById(decoded.id);
+        }
+      } catch (err) {}
+    }
 
     if (!donor || donor.isDeleted) {
       return res.status(404).json({ success: false, error: 'Donor account not found.' });
     }
 
+    if (!donor.phoneVerified) {
+      return res.status(400).json({
+        success: false,
+        error: 'Phone number is not verified yet. Please complete verification.',
+        unverified: true,
+      });
+    }
+
     if (!donor.pinHash) {
-      return res.status(400).json({ success: false, error: 'PIN has not been set for this account.' });
+      return res.status(400).json({
+        success: false,
+        error: 'PIN has not been set for this account. Please set your PIN.',
+        needsPin: true,
+      });
     }
 
     const isValid = await comparePassword(pin, donor.pinHash);
