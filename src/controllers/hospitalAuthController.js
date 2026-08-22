@@ -52,10 +52,12 @@ exports.registerHospital = async (req, res, next) => {
 
         await existingHospital.save();
 
-        // Dispatch email asynchronously in background
-        sendVerificationEmail(existingHospital.email, code).catch((err) => {
-          console.warn('[WARN] Background email dispatch error:', err.message);
-        });
+        // Dispatch verification email
+        try {
+          await sendVerificationEmail(existingHospital.email, code);
+        } catch (err) {
+          console.warn('[WARN] Verification email dispatch error:', err.message);
+        }
 
         return res.status(200).json({
           success: true,
@@ -106,10 +108,12 @@ exports.registerHospital = async (req, res, next) => {
 
     await hospital.save();
 
-    // Dispatch email asynchronously in background so client receives immediate HTTP 201
-    sendVerificationEmail(hospital.email, code).catch((emailErr) => {
-      console.warn('[WARN] Background email dispatch error:', emailErr.message);
-    });
+    // Dispatch verification email
+    try {
+      await sendVerificationEmail(hospital.email, code);
+    } catch (emailErr) {
+      console.warn('[WARN] Verification email dispatch error:', emailErr.message);
+    }
 
     return res.status(201).json({
       success: true,
@@ -199,10 +203,12 @@ exports.resendEmailCode = async (req, res, next) => {
       hospital.verificationOtpLastSentAt = now;
       await hospital.save();
 
-      // Dispatch email asynchronously
-      sendVerificationEmail(hospital.email, code).catch((err) => {
+      // Dispatch email
+      try {
+        await sendVerificationEmail(hospital.email, code);
+      } catch (err) {
         console.warn('[WARN] Background email dispatch error:', err.message);
-      });
+      }
     }
 
     return res.status(200).json({
