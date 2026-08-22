@@ -64,11 +64,9 @@ exports.approveHospital = async (req, res, next) => {
     hospital.rejectionReason = null;
     await hospital.save();
 
-    try {
-      await emailService.sendApprovalEmail(hospital.email);
-    } catch (emailErr) {
-      console.warn('[WARN] SMTP Error sending approval email:', emailErr.message);
-    }
+    emailService.sendApprovalEmail(hospital.email).catch((emailErr) => {
+      console.warn('[WARN] Background approval email error:', emailErr.message);
+    });
 
     return res.status(200).json({
       success: true,
@@ -114,11 +112,9 @@ exports.rejectHospital = async (req, res, next) => {
     hospital.rejectionReason = finalReason;
     await hospital.save();
 
-    try {
-      await emailService.sendRejectionEmail(hospital.email, finalReason);
-    } catch (emailErr) {
-      console.warn('[WARN] SMTP Error sending rejection email:', emailErr.message);
-    }
+    emailService.sendRejectionEmail(hospital.email, finalReason).catch((emailErr) => {
+      console.warn('[WARN] Background rejection email error:', emailErr.message);
+    });
 
     return res.status(200).json({
       success: true,
@@ -293,16 +289,15 @@ exports.createAdmin = async (req, res, next) => {
 
     await admin.save();
 
-    try {
-      if (emailService.sendAdminVerificationOtp) {
-        await emailService.sendAdminVerificationOtp(cleanEmail, code);
-      }
-      if (emailService.sendAdminSetupEmail) {
-        // Must configure FRONTEND_URL in .env so it links to the correct place
-        await emailService.sendAdminSetupEmail(cleanEmail, code, parsedPermissions);
-      }
-    } catch (emailErr) {
-      console.warn('[WARN] SMTP Error sending admin setup email:', emailErr.message);
+    if (emailService.sendAdminVerificationOtp) {
+      emailService.sendAdminVerificationOtp(cleanEmail, code).catch((err) => {
+        console.warn('[WARN] Background admin verification OTP error:', err.message);
+      });
+    }
+    if (emailService.sendAdminSetupEmail) {
+      emailService.sendAdminSetupEmail(cleanEmail, code, parsedPermissions).catch((err) => {
+        console.warn('[WARN] Background admin setup email error:', err.message);
+      });
     }
 
     return res.status(201).json({

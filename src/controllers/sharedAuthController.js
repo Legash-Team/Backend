@@ -20,8 +20,14 @@ exports.login = async (req, res, next) => {
 
     const cleanEmail = email.toLowerCase().trim();
 
+    // Query all three user collections in parallel for optimal speed
+    const [hospital, superAdmin, admin] = await Promise.all([
+      Hospital.findOne({ email: cleanEmail, isDeleted: { $ne: true } }),
+      SuperAdmin.findOne({ email: cleanEmail }),
+      Admin.findOne({ email: cleanEmail, isDeleted: { $ne: true } }),
+    ]);
+
     // 1. Check Hospital Account
-    const hospital = await Hospital.findOne({ email: cleanEmail, isDeleted: { $ne: true } });
     if (hospital) {
       const isPasswordMatch = await comparePassword(password, hospital.passwordHash);
       if (!isPasswordMatch) {
@@ -67,7 +73,6 @@ exports.login = async (req, res, next) => {
     }
 
     // 2. Check SuperAdmin Account
-    const superAdmin = await SuperAdmin.findOne({ email: cleanEmail });
     if (superAdmin) {
       const isAdminPasswordMatch = await comparePassword(password, superAdmin.passwordHash);
       if (!isAdminPasswordMatch) {
@@ -92,7 +97,6 @@ exports.login = async (req, res, next) => {
     }
 
     // 3. Check Admin Account
-    const admin = await Admin.findOne({ email: cleanEmail, isDeleted: { $ne: true } });
     if (admin && admin.emailVerified && admin.passwordHash) {
       const isAdminMatch = await comparePassword(password, admin.passwordHash);
       if (!isAdminMatch) {
@@ -192,34 +196,33 @@ exports.forgotPassword = async (req, res, next) => {
     const cleanEmail = email.toLowerCase().trim();
     const { code, expiresAt } = generateResetCode();
 
-    const hospital = await Hospital.findOne({ email: cleanEmail });
+    const [hospital, superAdmin, admin] = await Promise.all([
+      Hospital.findOne({ email: cleanEmail }),
+      SuperAdmin.findOne({ email: cleanEmail }),
+      Admin.findOne({ email: cleanEmail }),
+    ]);
+
     if (hospital) {
       hospital.resetCode = code;
       hospital.resetCodeExpiresAt = expiresAt;
       await hospital.save();
-      try {
-        await sendPasswordResetEmail(cleanEmail, code);
-      } catch (err) {}
-    } else {
-      const superAdmin = await SuperAdmin.findOne({ email: cleanEmail });
-      if (superAdmin) {
-        superAdmin.resetCode = code;
-        superAdmin.resetCodeExpiresAt = expiresAt;
-        await superAdmin.save();
-        try {
-          await sendPasswordResetEmail(cleanEmail, code);
-        } catch (err) {}
-      } else {
-        const admin = await Admin.findOne({ email: cleanEmail });
-        if (admin) {
-          admin.setupToken = code;
-          admin.setupTokenExpiresAt = expiresAt;
-          await admin.save();
-          try {
-            await sendPasswordResetEmail(cleanEmail, code);
-          } catch (err) {}
-        }
-      }
+      sendPasswordResetEmail(cleanEmail, code).catch((err) => {
+        console.warn('[WARN] Background email dispatch error:', err.message);
+      });
+    } else if (superAdmin) {
+      superAdmin.resetCode = code;
+      superAdmin.resetCodeExpiresAt = expiresAt;
+      await superAdmin.save();
+      sendPasswordResetEmail(cleanEmail, code).catch((err) => {
+        console.warn('[WARN] Background email dispatch error:', err.message);
+      });
+    } else if (admin) {
+      admin.setupToken = code;
+      admin.setupTokenExpiresAt = expiresAt;
+      await admin.save();
+      sendPasswordResetEmail(cleanEmail, code).catch((err) => {
+        console.warn('[WARN] Background email dispatch error:', err.message);
+      });
     }
 
     return res.status(200).json({
