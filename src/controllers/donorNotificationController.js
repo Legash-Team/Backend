@@ -39,9 +39,12 @@ exports.list = async (req, res, next) => {
 
     const notifications = responses.map((r) => {
       const parentReq = r.bloodRequest;
+      const hospital = parentReq?.hospital;
       return {
         id: r._id,
-        hospitalName: parentReq?.hospital?.hospitalName || 'Unknown Hospital',
+        hospitalName: hospital?.hospitalName || 'Unknown Hospital',
+        hospitalPhone: hospital?.phone || '',
+        hospitalLocation: hospital?.location || null,
         bloodType: parentReq?.bloodType || 'Unknown',
         quantityNeeded: parentReq?.quantityNeeded || 0,
         isEmergency: parentReq?.isEmergency || false,

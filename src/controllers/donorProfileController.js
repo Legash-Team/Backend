@@ -1,5 +1,6 @@
 // Backend/src/controllers/donorProfileController.js
 const Donor = require('../models/Donor');
+const Hospital = require('../models/Hospital');
 const { hashPassword, comparePassword } = require('../utils/hashPassword');
 const { sendOtp, verifyOtp } = require('../services/smsService');
 const { VALID_BLOOD_TYPES } = require('../utils/bloodCompatibility');
@@ -199,9 +200,66 @@ exports.deleteAccount = async (req, res, next) => {
   }
 };
 
-exports.getBloodCenters = async (req, res) => {
-  return res.status(200).json({
-    success: true,
-    centers: [],
-  });
+exports.getBloodCenters = async (req, res, next) => {
+  try {
+    const donor = await Donor.findById(req.user.id);
+    let centers = [];
+
+    if (
+      donor &&
+      donor.location &&
+      Array.isArray(donor.location.coordinates) &&
+      donor.location.coordinates.length === 2
+    ) {
+      try {
+        centers = await Hospital.find({
+          verificationStatus: 'approved',
+          isDeleted: { $ne: true },
+          location: {
+            $near: {
+              $geometry: donor.location,
+              $maxDistance: 100000, // 100 km radius
+            },
+          },
+        }).select('hospitalName phone email location licenseNumber');
+      } catch (_) {
+        // Fall back to standard query if geospatial index query encounters issues
+        centers = [];
+      }
+    }
+
+    if (!centers || centers.length === 0) {
+      centers = await Hospital.find({
+        verificationStatus: 'approved',
+        isDeleted: { $ne: true },
+      })
+        .select('hospitalName phone email location licenseNumber')
+        .limit(30);
+    }
+
+    const formattedCenters = centers.map((h) => {
+      const [lng, lat] =
+        Array.isArray(h.location?.coordinates) && h.location.coordinates.length === 2
+          ? h.location.coordinates
+          : [38.75, 9.03];
+      return {
+        id: h._id,
+        name: h.hospitalName,
+        phone: h.phone,
+        email: h.email,
+        address: h.location?.address || 'Addis Ababa, Ethiopia',
+        lat,
+        lng,
+        licenseNumber: h.licenseNumber,
+        status: 'Open for Donations',
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      centers: formattedCenters,
+    });
+  } catch (error) {
+    next(error);
+  }
 };
