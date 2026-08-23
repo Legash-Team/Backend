@@ -50,6 +50,7 @@ describe('Push Service - sendBloodAlert Unit Tests', () => {
     admin._mockSend.mockResolvedValue('message-id-123');
 
     const alertData = {
+      requestId: '64f123456789abcdef012345',
       hospitalName: 'Tikur Anbessa Hospital',
       bloodType: 'O-',
       quantityNeeded: 3,
@@ -66,6 +67,7 @@ describe('Push Service - sendBloodAlert Unit Tests', () => {
       },
       data: {
         type: 'BLOOD_REQUEST',
+        requestId: '64f123456789abcdef012345',
         hospitalName: 'Tikur Anbessa Hospital',
         bloodType: 'O-',
         quantityNeeded: '3',

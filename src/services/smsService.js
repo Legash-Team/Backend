@@ -47,6 +47,7 @@ async function verifyOtp(phone, code) {
 }
 
 async function sendBloodAlertSms(phone, { hospitalName, bloodType, quantityNeeded }) {
+  if (!phone) return;
   const message = `Legash: ${hospitalName} needs ${bloodType} blood. Open the app to respond.`;
   
   if (process.env.NODE_ENV === 'test' || !process.env.SMS_GATEWAY_BASE_URL || process.env.SMS_GATEWAY_BASE_URL.includes('example')) {
@@ -54,16 +55,22 @@ async function sendBloodAlertSms(phone, { hospitalName, bloodType, quantityNeede
     return;
   }
 
-  const response = await fetch(`${process.env.SMS_GATEWAY_BASE_URL}/api/v1/sms/send`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.SMS_GATEWAY_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ phone, message }),
-  });
-  if (!response.ok) {
-    throw new Error(`SMS gateway error: ${response.status}`);
+  try {
+    const response = await fetch(`${process.env.SMS_GATEWAY_BASE_URL}/api/v1/sms/send`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.SMS_GATEWAY_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ phone, message }),
+    });
+    if (!response.ok) {
+      console.error(`SMS gateway error for ${phone}: ${response.status}`);
+    } else if (process.env.NODE_ENV !== 'test') {
+      console.log(`[SMS ALERT] Blood alert SMS sent to ${phone}`);
+    }
+  } catch (error) {
+    console.error(`SMS dispatch error for ${phone}:`, error.message);
   }
 }
 

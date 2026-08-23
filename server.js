@@ -14,6 +14,7 @@ const mongoSanitize = require('express-mongo-sanitize');
 const rateLimit = require('express-rate-limit');
 const swaggerUi = require('swagger-ui-express');
 const connectDB = require('./src/config/db');
+require('./src/config/firebase');
 const errorHandler = require('./src/middleware/errorHandler');
 
 // Route & Controller imports
