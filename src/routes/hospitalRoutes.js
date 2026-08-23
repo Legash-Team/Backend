@@ -19,6 +19,7 @@ router.delete('/profile', hospitalController.deleteAccount);
 
 // Fixed 8 Blood-Type Stock Endpoints
 router.get('/blood-stock', hospitalController.getBloodStock);
+router.put('/blood-stock', hospitalController.updateAllBloodStock);
 router.put('/blood-stock/:bloodType', hospitalController.updateBloodStock);
 
 // Hospital-to-Hospital Search

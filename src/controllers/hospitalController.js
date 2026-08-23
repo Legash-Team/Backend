@@ -256,10 +256,118 @@ exports.getBloodStock = async (req, res, next) => {
   }
 };
 
+// PUT /api/hospital/blood-stock
+exports.updateAllBloodStock = async (req, res, next) => {
+  try {
+    const hospital = await Hospital.findById(req.user.id);
+    if (!hospital || hospital.isDeleted) {
+      return res.status(404).json({ success: false, error: 'Hospital not found.' });
+    }
+
+    const payload = req.body.bloodStock || req.body.stock || req.body;
+
+    if (!payload || typeof payload !== 'object') {
+      return res.status(400).json({ success: false, error: 'Invalid blood stock payload.' });
+    }
+
+    if (!Array.isArray(hospital.bloodStock) || hospital.bloodStock.length === 0) {
+      hospital.bloodStock = VALID_BLOOD_TYPES.map((type) => ({
+        bloodType: type,
+        availableUnits: 0,
+        reservedUnits: 0,
+        minimumUnits: 0,
+      }));
+    }
+
+    if (Array.isArray(payload)) {
+      for (const item of payload) {
+        if (!item || !item.bloodType || !VALID_BLOOD_TYPES.includes(item.bloodType)) {
+          return res.status(400).json({
+            success: false,
+            error: `Invalid blood type in payload: ${item?.bloodType}. Allowed types: ${VALID_BLOOD_TYPES.join(', ')}`,
+          });
+        }
+        const units = Number(item.availableUnits ?? item.quantity ?? 0);
+        if (isNaN(units) || units < 0) {
+          return res.status(400).json({
+            success: false,
+            error: `Blood stock units for ${item.bloodType} cannot be negative.`,
+          });
+        }
+        let stockItem = hospital.bloodStock.find((s) => s.bloodType === item.bloodType);
+        if (!stockItem) {
+          hospital.bloodStock.push({
+            bloodType: item.bloodType,
+            availableUnits: units,
+            reservedUnits: 0,
+            minimumUnits: 0,
+          });
+        } else {
+          stockItem.availableUnits = units;
+        }
+      }
+    } else {
+      for (const type of VALID_BLOOD_TYPES) {
+        if (payload[type] !== undefined) {
+          const units = Number(payload[type]);
+          if (isNaN(units) || units < 0) {
+            return res.status(400).json({
+              success: false,
+              error: `Blood stock units for ${type} cannot be negative.`,
+            });
+          }
+          let stockItem = hospital.bloodStock.find((s) => s.bloodType === type);
+          if (!stockItem) {
+            hospital.bloodStock.push({
+              bloodType: type,
+              availableUnits: units,
+              reservedUnits: 0,
+              minimumUnits: 0,
+            });
+          } else {
+            stockItem.availableUnits = units;
+          }
+        }
+      }
+    }
+
+    hospital.markModified('bloodStock');
+    await hospital.save();
+
+    const stockMap = {};
+    VALID_BLOOD_TYPES.forEach((type) => {
+      stockMap[type] = 0;
+    });
+
+    const bloodStockList = VALID_BLOOD_TYPES.map((type) => {
+      const existing = hospital.bloodStock.find((s) => s.bloodType === type);
+      const availableUnits = existing ? existing.availableUnits : 0;
+      stockMap[type] = availableUnits;
+      return {
+        bloodType: type,
+        availableUnits,
+        reservedUnits: existing ? existing.reservedUnits : 0,
+        minimumUnits: existing ? existing.minimumUnits : 0,
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Blood stock inventory updated successfully.',
+      stock: stockMap,
+      bloodStock: stockMap,
+      data: bloodStockList,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // PUT /api/hospital/blood-stock/:bloodType
 exports.updateBloodStock = async (req, res, next) => {
   try {
-    const { bloodType } = req.params;
+    const rawBloodType = req.params.bloodType;
+    const bloodType = rawBloodType ? decodeURIComponent(rawBloodType) : '';
 
     if (!VALID_BLOOD_TYPES.includes(bloodType)) {
       return res.status(400).json({
