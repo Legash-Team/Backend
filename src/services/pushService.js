@@ -1,7 +1,8 @@
-const admin = require('firebase-admin');
+const { admin, initFirebase } = require('../config/firebase');
 
-async function sendBloodAlert(pushToken, { hospitalName, bloodType, quantityNeeded }) {
-  if (!pushToken || !admin.apps.length) return;
+async function sendBloodAlert(pushToken, { requestId, hospitalName, bloodType, quantityNeeded }) {
+  initFirebase();
+  if (!pushToken || !admin.apps || !admin.apps.length) return;
 
   const payload = {
     notification: {
@@ -10,17 +11,22 @@ async function sendBloodAlert(pushToken, { hospitalName, bloodType, quantityNeed
     },
     data: {
       type: 'BLOOD_REQUEST',
-      hospitalName,
-      bloodType,
-      quantityNeeded: String(quantityNeeded),
+      ...(requestId ? { requestId: String(requestId) } : {}),
+      hospitalName: String(hospitalName || ''),
+      bloodType: String(bloodType || ''),
+      quantityNeeded: String(quantityNeeded || ''),
     },
   };
 
   try {
-    await admin.messaging().send({
+    const response = await admin.messaging().send({
       token: pushToken,
-      ...payload
+      ...payload,
     });
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`[FCM PUSH] Sent blood alert to token ${pushToken.slice(0, 10)}... (ID: ${response})`);
+    }
+    return response;
   } catch (error) {
     console.error('Firebase Push Error:', error);
   }

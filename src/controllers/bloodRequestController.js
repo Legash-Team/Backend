@@ -57,6 +57,7 @@ exports.create = async (req, res, next) => {
       });
 
       const alertData = {
+        requestId: request._id,
         hospitalName: hospital.hospitalName,
         bloodType,
         quantityNeeded,
