@@ -35,6 +35,7 @@ const uploadRoutes = require('./src/routes/uploadRoutes');
 const verifyToken = require('./src/middleware/authMiddleware');
 const requireRole = require('./src/middleware/requireRole');
 const { startAutoCloseJob } = require('./src/jobs/autoCloseBloodRequests');
+const { loadV2Routes, startV2Jobs } = require('./src/utils/v2Loader');
 
 const app = express();
 
@@ -141,6 +142,10 @@ app.use('/api/media', uploadRoutes);
 // Facility Inventory Routes (Sprint 2 Contract)
 app.use('/v1/inventory', inventoryRoutes);
 
+// V2 route modules: every .js file in src/routes/v2/ exports `mounts: [{ path, router }]`.
+// Registered after all existing mounts (existing routes keep precedence) and before errorHandler.
+loadV2Routes(app);
+
 // Health check endpoint
 app.get('/', (req, res) =>
   res.json({
@@ -162,6 +167,8 @@ if (process.env.NODE_ENV !== 'test') {
       console.log(`Swagger Docs: http://localhost:${PORT}/api-docs`);
     });
     startAutoCloseJob();
+    // V2 job modules: every .js file in src/jobs/v2/ exports `start()`.
+    startV2Jobs();
   });
 }
 
