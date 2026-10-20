@@ -1,19 +1,19 @@
 // Backend/src/services/emailService.js
-// Transactional email dispatch via Resend API (used for hospital verification, password reset, admin setup, etc.)
+// Transactional email dispatch via Brevo API (used for hospital verification, password reset, admin setup, etc.)
 
-const { Resend } = require('resend');
+const { BrevoClient } = require('@getbrevo/brevo');
 
-let _resendClient = null;
+let _brevoClient = null;
 
-function getResendClient() {
-  const apiKey = process.env.RESEND_API_KEY ? process.env.RESEND_API_KEY.trim() : '';
+function getBrevoClient() {
+  const apiKey = process.env.BREVO_API_KEY ? process.env.BREVO_API_KEY.trim() : '';
   if (!apiKey) {
     return null;
   }
-  if (!_resendClient) {
-    _resendClient = new Resend(apiKey);
+  if (!_brevoClient) {
+    _brevoClient = new BrevoClient({ apiKey });
   }
-  return _resendClient;
+  return _brevoClient;
 }
 
 function getFrontendBaseUrl() {
@@ -24,17 +24,25 @@ function getFrontendBaseUrl() {
   return url;
 }
 
+function parseSender(fromStr) {
+  const match = fromStr.match(/^(.*?)\s*<(.+?)>$/);
+  if (match) {
+    return { name: match[1].trim(), email: match[2].trim() };
+  }
+  return { name: 'Legash Blood Network', email: fromStr.trim() };
+}
+
 function getFromEmail() {
-  return process.env.EMAIL_FROM ? process.env.EMAIL_FROM.trim() : 'Legash Blood Network <onboarding@resend.dev>';
+  return process.env.EMAIL_FROM ? process.env.EMAIL_FROM.trim() : 'Legash Blood Network <noreply@legash.org>';
 }
 
 function isMockMode() {
-  const client = getResendClient();
+  const client = getBrevoClient();
   return (
     !client ||
-    !process.env.RESEND_API_KEY ||
-    process.env.RESEND_API_KEY.includes('example') ||
-    process.env.RESEND_API_KEY === 'mock' ||
+    !process.env.BREVO_API_KEY ||
+    process.env.BREVO_API_KEY.includes('example') ||
+    process.env.BREVO_API_KEY === 'mock' ||
     process.env.NODE_ENV === 'test' ||
     Boolean(process.env.EMAIL_USER && process.env.EMAIL_USER.includes('example'))
   );
@@ -63,13 +71,13 @@ async function sendVerificationEmail(toEmail, code) {
   const linkText = verificationLink ? `\n\nOr verify directly by clicking: ${verificationLink}` : '';
 
   try {
-    const resend = getResendClient();
-    const { data, error } = await resend.emails.send({
-      from: getFromEmail(),
-      to: [toEmail],
+    const brevo = getBrevoClient();
+    const response = await brevo.transactionalEmails.sendTransacEmail({
+      sender: parseSender(getFromEmail()),
+      to: [{ email: toEmail }],
       subject: 'Your Legash Hospital Verification Code',
-      text: `Welcome to Legash Blood Network!\n\nYour 6-digit hospital verification code is: ${code}${linkText}\n\nThis code expires in 15 minutes.`,
-      html: `<div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; border: 1px solid #E5DFD7; border-radius: 12px;">
+      textContent: `Welcome to Legash Blood Network!\n\nYour 6-digit hospital verification code is: ${code}${linkText}\n\nThis code expires in 15 minutes.`,
+      htmlContent: `<div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; border: 1px solid #E5DFD7; border-radius: 12px;">
                <h2 style="color: #C21838; margin-top: 0;">Legash Blood Network</h2>
                <p style="font-size: 15px; color: #1B1410;">Thank you for registering your hospital. Your 6-digit verification code is:</p>
                <div style="background-color: #FAF7F2; border-radius: 8px; padding: 16px; text-align: center; margin: 20px 0;">
@@ -82,16 +90,12 @@ async function sendVerificationEmail(toEmail, code) {
              </div>`,
     });
 
-    if (error) {
-      console.error(`[EMAIL ERROR] Failed sending verification email to ${toEmail}:`, error.message || error);
-      return { success: false, error: error.message || error };
-    }
-
-    console.log(`[EMAIL] Verification email sent to ${toEmail}, id: ${data?.id}`);
-    return { success: true, messageId: data?.id };
+    const messageId = response?.messageId || (response?.messageIds && response.messageIds[0]) || 'sent';
+    console.log(`[EMAIL] Verification email sent to ${toEmail}, id: ${messageId}`);
+    return { success: true, messageId };
   } catch (err) {
-    console.error(`[EMAIL ERROR] Failed sending verification email to ${toEmail}:`, err.message);
-    return { success: false, error: err.message };
+    console.error(`[EMAIL ERROR] Failed sending verification email to ${toEmail}:`, err.message || err);
+    return { success: false, error: err.message || err };
   }
 }
 
@@ -105,13 +109,13 @@ async function sendPasswordResetEmail(toEmail, resetCode) {
   }
 
   try {
-    const resend = getResendClient();
-    const { data, error } = await resend.emails.send({
-      from: getFromEmail(),
-      to: [toEmail],
+    const brevo = getBrevoClient();
+    const response = await brevo.transactionalEmails.sendTransacEmail({
+      sender: parseSender(getFromEmail()),
+      to: [{ email: toEmail }],
       subject: 'Your Legash Password Reset Code',
-      text: `Your Legash password reset code is: ${resetCode}\n\nThis code expires in 15 minutes. If you did not request this, please secure your account immediately.`,
-      html: `<div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #E5DFD7; border-radius: 8px;">
+      textContent: `Your Legash password reset code is: ${resetCode}\n\nThis code expires in 15 minutes. If you did not request this, please secure your account immediately.`,
+      htmlContent: `<div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #E5DFD7; border-radius: 8px;">
                <h2 style="color: #C21838; margin-top: 0;">Legash Password Reset</h2>
                <p>Your password reset code is:</p>
                <div style="background-color: #FAF7F2; border-radius: 6px; padding: 12px; text-align: center; margin: 16px 0;">
@@ -121,16 +125,12 @@ async function sendPasswordResetEmail(toEmail, resetCode) {
              </div>`,
     });
 
-    if (error) {
-      console.error(`[EMAIL ERROR] Failed sending reset email to ${toEmail}:`, error.message || error);
-      return { success: false, error: error.message || error };
-    }
-
-    console.log(`[EMAIL] Password reset email sent to ${toEmail}, id: ${data?.id}`);
-    return { success: true, messageId: data?.id };
+    const messageId = response?.messageId || (response?.messageIds && response.messageIds[0]) || 'sent';
+    console.log(`[EMAIL] Password reset email sent to ${toEmail}, id: ${messageId}`);
+    return { success: true, messageId };
   } catch (err) {
-    console.error(`[EMAIL ERROR] Failed sending reset email to ${toEmail}:`, err.message);
-    return { success: false, error: err.message };
+    console.error(`[EMAIL ERROR] Failed sending reset email to ${toEmail}:`, err.message || err);
+    return { success: false, error: err.message || err };
   }
 }
 
@@ -148,13 +148,13 @@ async function sendApprovalEmail(toEmail) {
     : `<p>Please log in via your Legash dashboard.</p>`;
 
   try {
-    const resend = getResendClient();
-    const { data, error } = await resend.emails.send({
-      from: getFromEmail(),
-      to: [toEmail],
+    const brevo = getBrevoClient();
+    const response = await brevo.transactionalEmails.sendTransacEmail({
+      sender: parseSender(getFromEmail()),
+      to: [{ email: toEmail }],
       subject: 'Legash Hospital Account Approved',
-      text: `Your Legash hospital account has been verified and approved by the Super Admin.${loginLink ? `\n\nLog in: ${loginLink}` : ''}`,
-      html: `<div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #E5DFD7; border-radius: 8px;">
+      textContent: `Your Legash hospital account has been verified and approved by the Super Admin.${loginLink ? `\n\nLog in: ${loginLink}` : ''}`,
+      htmlContent: `<div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #E5DFD7; border-radius: 8px;">
                <h2 style="color: #1F6F5C; margin-top: 0;">Account Approved</h2>
                <p>Your Legash hospital account has been verified and approved by the Super Admin.</p>
                <p>You can now access your hospital portal and manage blood requests:</p>
@@ -162,16 +162,12 @@ async function sendApprovalEmail(toEmail) {
              </div>`,
     });
 
-    if (error) {
-      console.error(`[EMAIL ERROR] Failed sending approval email to ${toEmail}:`, error.message || error);
-      return { success: false, error: error.message || error };
-    }
-
-    console.log(`[EMAIL] Approval email sent to ${toEmail}, id: ${data?.id}`);
-    return { success: true, messageId: data?.id };
+    const messageId = response?.messageId || (response?.messageIds && response.messageIds[0]) || 'sent';
+    console.log(`[EMAIL] Approval email sent to ${toEmail}, id: ${messageId}`);
+    return { success: true, messageId };
   } catch (err) {
-    console.error(`[EMAIL ERROR] Failed sending approval email to ${toEmail}:`, err.message);
-    return { success: false, error: err.message };
+    console.error(`[EMAIL ERROR] Failed sending approval email to ${toEmail}:`, err.message || err);
+    return { success: false, error: err.message || err };
   }
 }
 
@@ -194,13 +190,13 @@ async function sendRejectionEmail(toEmail, reason) {
     : `<p>If you believe this was an error, please contact the administrator.</p>`;
 
   try {
-    const resend = getResendClient();
-    const { data, error } = await resend.emails.send({
-      from: getFromEmail(),
-      to: [toEmail],
+    const brevo = getBrevoClient();
+    const response = await brevo.transactionalEmails.sendTransacEmail({
+      sender: parseSender(getFromEmail()),
+      to: [{ email: toEmail }],
       subject: 'Legash Hospital Registration Update',
-      text: `Your Legash hospital registration was not approved.${reasonText}${appealLink ? `\n\nSubmit appeal: ${appealLink}` : ''}`,
-      html: `<div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #E5DFD7; border-radius: 8px;">
+      textContent: `Your Legash hospital registration was not approved.${reasonText}${appealLink ? `\n\nSubmit appeal: ${appealLink}` : ''}`,
+      htmlContent: `<div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #E5DFD7; border-radius: 8px;">
                <h2 style="color: #C21838; margin-top: 0;">Registration Update</h2>
                <p>Your Legash hospital registration was not approved.</p>
                ${reasonHtml}
@@ -208,16 +204,12 @@ async function sendRejectionEmail(toEmail, reason) {
              </div>`,
     });
 
-    if (error) {
-      console.error(`[EMAIL ERROR] Failed sending rejection email to ${toEmail}:`, error.message || error);
-      return { success: false, error: error.message || error };
-    }
-
-    console.log(`[EMAIL] Rejection email sent to ${toEmail}, id: ${data?.id}`);
-    return { success: true, messageId: data?.id };
+    const messageId = response?.messageId || (response?.messageIds && response.messageIds[0]) || 'sent';
+    console.log(`[EMAIL] Rejection email sent to ${toEmail}, id: ${messageId}`);
+    return { success: true, messageId };
   } catch (err) {
-    console.error(`[EMAIL ERROR] Failed sending rejection email to ${toEmail}:`, err.message);
-    return { success: false, error: err.message };
+    console.error(`[EMAIL ERROR] Failed sending rejection email to ${toEmail}:`, err.message || err);
+    return { success: false, error: err.message || err };
   }
 }
 
@@ -231,13 +223,13 @@ async function sendAdminVerificationOtp(toEmail, otp) {
   }
 
   try {
-    const resend = getResendClient();
-    const { data, error } = await resend.emails.send({
-      from: getFromEmail(),
-      to: [toEmail],
+    const brevo = getBrevoClient();
+    const response = await brevo.transactionalEmails.sendTransacEmail({
+      sender: parseSender(getFromEmail()),
+      to: [{ email: toEmail }],
       subject: 'Your Legash Admin Verification Code',
-      text: `You have been added as an Admin to Legash.\n\nYour 6-digit verification code is: ${otp}\n\nThis code expires in 15 minutes.`,
-      html: `<div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #E5DFD7; border-radius: 8px;">
+      textContent: `You have been added as an Admin to Legash.\n\nYour 6-digit verification code is: ${otp}\n\nThis code expires in 15 minutes.`,
+      htmlContent: `<div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #E5DFD7; border-radius: 8px;">
                <h2 style="color: #C21838; margin-top: 0;">Legash Admin Portal</h2>
                <p>You have been added as an Admin to Legash.</p>
                <p>Your 6-digit verification code is:</p>
@@ -248,16 +240,12 @@ async function sendAdminVerificationOtp(toEmail, otp) {
              </div>`,
     });
 
-    if (error) {
-      console.error(`[EMAIL ERROR] Failed sending admin verification OTP to ${toEmail}:`, error.message || error);
-      return { success: false, error: error.message || error };
-    }
-
-    console.log(`[EMAIL] Admin verification OTP sent to ${toEmail}, id: ${data?.id}`);
-    return { success: true, messageId: data?.id };
+    const messageId = response?.messageId || (response?.messageIds && response.messageIds[0]) || 'sent';
+    console.log(`[EMAIL] Admin verification OTP sent to ${toEmail}, id: ${messageId}`);
+    return { success: true, messageId };
   } catch (err) {
-    console.error(`[EMAIL ERROR] Failed sending admin verification OTP to ${toEmail}:`, err.message);
-    return { success: false, error: err.message };
+    console.error(`[EMAIL ERROR] Failed sending admin verification OTP to ${toEmail}:`, err.message || err);
+    return { success: false, error: err.message || err };
   }
 }
 
@@ -279,13 +267,13 @@ async function sendAdminSetupEmail(toEmail, setupToken, permissions) {
     : `<p>Use the following setup token to configure your password: <code>${setupToken}</code></p>`;
 
   try {
-    const resend = getResendClient();
-    const { data, error } = await resend.emails.send({
-      from: getFromEmail(),
-      to: [toEmail],
+    const brevo = getBrevoClient();
+    const response = await brevo.transactionalEmails.sendTransacEmail({
+      sender: parseSender(getFromEmail()),
+      to: [{ email: toEmail }],
       subject: 'Invitation to Join Legash Admin Portal',
-      text: `You have been invited as an Admin on Legash.\n\nPermissions:\n- Approve Hospitals: ${permissions?.canApproveHospitals ? 'Yes' : 'No'}\n- Post Events: ${permissions?.canPostEvents ? 'Yes' : 'No'}\n\n${setupLink ? `Set up password: ${setupLink}` : `Setup token: ${setupToken}`}`,
-      html: `<div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #E5DFD7; border-radius: 8px;">
+      textContent: `You have been invited as an Admin on Legash.\n\nPermissions:\n- Approve Hospitals: ${permissions?.canApproveHospitals ? 'Yes' : 'No'}\n- Post Events: ${permissions?.canPostEvents ? 'Yes' : 'No'}\n\n${setupLink ? `Set up password: ${setupLink}` : `Setup token: ${setupToken}`}`,
+      htmlContent: `<div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #E5DFD7; border-radius: 8px;">
                <h2 style="color: #C21838; margin-top: 0;">Legash Admin Invitation</h2>
                <p>You have been invited as an Admin on Legash with the following permissions:</p>
                <ul>
@@ -296,16 +284,12 @@ async function sendAdminSetupEmail(toEmail, setupToken, permissions) {
              </div>`,
     });
 
-    if (error) {
-      console.error(`[EMAIL ERROR] Failed sending admin setup invitation to ${toEmail}:`, error.message || error);
-      return { success: false, error: error.message || error };
-    }
-
-    console.log(`[EMAIL] Admin setup invitation sent to ${toEmail}, id: ${data?.id}`);
-    return { success: true, messageId: data?.id };
+    const messageId = response?.messageId || (response?.messageIds && response.messageIds[0]) || 'sent';
+    console.log(`[EMAIL] Admin setup invitation sent to ${toEmail}, id: ${messageId}`);
+    return { success: true, messageId };
   } catch (err) {
-    console.error(`[EMAIL ERROR] Failed sending admin setup invitation to ${toEmail}:`, err.message);
-    return { success: false, error: err.message };
+    console.error(`[EMAIL ERROR] Failed sending admin setup invitation to ${toEmail}:`, err.message || err);
+    return { success: false, error: err.message || err };
   }
 }
 
