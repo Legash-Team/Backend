@@ -26,6 +26,9 @@ jest.mock('../../src/services/smsService', () => ({
   sendBloodAlertSms: jest.fn().mockResolvedValue(true)
 }));
 
+const { sendBloodAlert } = require('../../src/services/pushService');
+const { sendBloodAlertSms } = require('../../src/services/smsService');
+
 describe('Blood Request Lifecycle Integration', () => {
   let hospital, donor1, donor2, hospitalToken, donor1Token;
 
@@ -207,6 +210,75 @@ describe('Blood Request Lifecycle Integration', () => {
         .send({ bloodType: 'O+', quantityNeeded: 0 });
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/quantityNeeded must be a positive integer/);
+    });
+
+    it('excludes recent donors (< 90 days) and dispatches both FCM push and SMS to eligible matched donors', async () => {
+      // Create a donor who donated 20 days ago (ineligible)
+      await Donor.create({
+        name: 'Recent Donor',
+        phone: '+251900000088',
+        fin: 'FIN088',
+        bloodType: 'O+',
+        lastDonatedAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
+        location: { type: 'Point', coordinates: [38.7579, 9.0321] },
+        phoneVerified: true,
+      });
+
+      // Create a donor who donated 95 days ago (eligible)
+      const eligiblePastDonor = await Donor.create({
+        name: 'Eligible Past Donor',
+        phone: '+251900000099',
+        fin: 'FIN099',
+        bloodType: 'O+',
+        pushToken: 'past-donor-token',
+        lastDonatedAt: new Date(Date.now() - 95 * 24 * 60 * 60 * 1000),
+        location: { type: 'Point', coordinates: [38.7579, 9.0321] },
+        phoneVerified: true,
+      });
+
+      sendBloodAlert.mockClear();
+      sendBloodAlertSms.mockClear();
+
+      const res = await request(app)
+        .post('/api/hospital/blood-requests')
+        .set('Authorization', `Bearer ${hospitalToken}`)
+        .send({
+          bloodType: 'O+',
+          quantityNeeded: 1,
+          closesAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+        });
+
+      expect(res.status).toBe(201);
+      // donor1 (no lastDonatedAt) and eligiblePastDonor (95 days ago) matched; Recent Donor (20 days ago) excluded
+      expect(res.body.notifiedDonorCount).toBe(2);
+
+      expect(sendBloodAlert).toHaveBeenCalledTimes(2);
+      expect(sendBloodAlertSms).toHaveBeenCalledTimes(2);
+      expect(sendBloodAlert).toHaveBeenCalledWith(
+        'past-donor-token',
+        expect.objectContaining({
+          bloodType: 'O+',
+          donorId: eligiblePastDonor._id,
+        })
+      );
+    });
+
+    it('isolates notification errors so push failure does not block SMS or request creation', async () => {
+      sendBloodAlert.mockRejectedValueOnce(new Error('Firebase network failure'));
+      sendBloodAlertSms.mockClear();
+
+      const res = await request(app)
+        .post('/api/hospital/blood-requests')
+        .set('Authorization', `Bearer ${hospitalToken}`)
+        .send({
+          bloodType: 'O+',
+          quantityNeeded: 2,
+          closesAt: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(sendBloodAlertSms).toHaveBeenCalled();
     });
   });
 });

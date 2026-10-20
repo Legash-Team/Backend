@@ -43,6 +43,7 @@ const donorSchema = new mongoose.Schema(
     lastDonatedAt: { type: Date, default: null },
     isDeleted: { type: Boolean, default: false },
   },
+  { timestamps: true }
 );
 
 donorSchema.index({ location: '2dsphere' });

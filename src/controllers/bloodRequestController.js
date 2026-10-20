@@ -39,7 +39,7 @@ exports.create = async (req, res, next) => {
 
     const compatibleTypes = getCompatibleDonorTypes(bloodType);
 
-    // Match only nearby donors with compatible blood types (excluding unknown)
+    // Match only nearby donors with compatible blood types (excluding unknown and ineligible)
     const matchedDonors = await Donor.find({
       bloodType: { $in: compatibleTypes },
       isDeleted: { $ne: true },
@@ -63,6 +63,7 @@ exports.create = async (req, res, next) => {
         hospitalName: hospital.hospitalName,
         bloodType,
         quantityNeeded,
+        donorId: donor._id,
       };
 
       const pushPromise = sendBloodAlert(donor.pushToken, alertData);
