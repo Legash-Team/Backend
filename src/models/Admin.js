@@ -1,64 +1,99 @@
 const mongoose = require('mongoose');
 
+const pointSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point'
+    },
+    coordinates: {
+      type: [Number],
+      required: true
+    },
+    address: {
+      type: String,
+      trim: true
+    }
+  },
+  { _id: false }
+);
+
 const adminSchema = new mongoose.Schema(
   {
     name: {
       type: String,
       required: true,
-      trim: true,
+      trim: true
     },
     email: {
       type: String,
       required: true,
       unique: true,
       lowercase: true,
-      trim: true,
+      trim: true
     },
     passwordHash: {
       type: String,
-      default: null,
+      default: null
+    },
+    centerName: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    phone: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    location: {
+      type: pointSchema,
+      default: undefined
     },
     emailVerified: {
       type: Boolean,
-      default: false,
+      default: false
     },
     verificationOtp: {
       type: String,
-      default: null,
+      default: null
     },
     verificationOtpExpiresAt: {
       type: Date,
-      default: null,
+      default: null
     },
     setupToken: {
       type: String,
-      default: null,
+      default: null
     },
     setupTokenExpiresAt: {
       type: Date,
-      default: null,
+      default: null
     },
     permissions: {
       canApproveHospitals: {
         type: Boolean,
-        default: false,
+        default: false
       },
       canPostEvents: {
         type: Boolean,
-        default: false,
-      },
+        default: false
+      }
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'SuperAdmin',
-      default: null,
+      default: null
     },
     isDeleted: {
       type: Boolean,
-      default: false,
-    },
+      default: false
+    }
   },
   { timestamps: true }
 );
+
+adminSchema.index({ location: '2dsphere' });
 
 module.exports = mongoose.model('Admin', adminSchema);
