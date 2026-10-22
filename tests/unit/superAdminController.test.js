@@ -424,7 +424,10 @@ describe('Super Admin Controller Unit Tests', () => {
   });
 
   describe('createAdmin', () => {
-    it('creates an admin with permissions object, sends verification OTP, and returns 201', async () => {
+    it('creates an admin with permissions object, sends setup email, and returns 201', async () => {
+      const sendSetupEmailSpy = jest
+        .spyOn(emailService, 'sendAdminSetupEmail')
+        .mockResolvedValue();
       const sendAdminOtpSpy = jest
         .spyOn(emailService, 'sendAdminVerificationOtp')
         .mockResolvedValue();
@@ -456,19 +459,24 @@ describe('Super Admin Controller Unit Tests', () => {
       // Verify DB record
       const dbAdmin = await Admin.findOne({ email: 'abebe.admin@example.com' });
       expect(dbAdmin).toBeDefined();
-      expect(dbAdmin.verificationOtp).toHaveLength(6);
+      expect(dbAdmin.verificationOtp).toBeNull();
+      expect(dbAdmin.verificationOtpExpiresAt).toBeNull();
+      expect(dbAdmin.setupToken).toMatch(/^[0-9a-f]{64}$/);
       expect(dbAdmin.emailVerified).toBe(false);
-      expect(sendAdminOtpSpy).toHaveBeenCalledWith(
+      expect(sendSetupEmailSpy).toHaveBeenCalledWith(
         'abebe.admin@example.com',
-        dbAdmin.verificationOtp
+        dbAdmin.setupToken,
+        { canApproveHospitals: true, canPostEvents: false }
       );
+      expect(sendAdminOtpSpy).not.toHaveBeenCalled();
 
+      sendSetupEmailSpy.mockRestore();
       sendAdminOtpSpy.mockRestore();
     });
 
     it('creates an admin with role string "both"', async () => {
-      const sendAdminOtpSpy = jest
-        .spyOn(emailService, 'sendAdminVerificationOtp')
+      const sendSetupEmailSpy = jest
+        .spyOn(emailService, 'sendAdminSetupEmail')
         .mockResolvedValue();
 
       const req = {
@@ -487,7 +495,7 @@ describe('Super Admin Controller Unit Tests', () => {
       expect(res.body.admin.permissions.canApproveHospitals).toBe(true);
       expect(res.body.admin.permissions.canPostEvents).toBe(true);
 
-      sendAdminOtpSpy.mockRestore();
+      sendSetupEmailSpy.mockRestore();
     });
 
     it('returns 400 if email is missing', async () => {
@@ -507,8 +515,8 @@ describe('Super Admin Controller Unit Tests', () => {
     });
 
     it('creates an admin with email and permissions without requiring name', async () => {
-      const sendAdminOtpSpy = jest
-        .spyOn(emailService, 'sendAdminVerificationOtp')
+      const sendSetupEmailSpy = jest
+        .spyOn(emailService, 'sendAdminSetupEmail')
         .mockResolvedValue();
 
       const req = {
@@ -530,7 +538,7 @@ describe('Super Admin Controller Unit Tests', () => {
       expect(res.body.admin.name).toBe('noname.admin');
       expect(res.body.admin.permissions.canApproveHospitals).toBe(true);
 
-      sendAdminOtpSpy.mockRestore();
+      sendSetupEmailSpy.mockRestore();
     });
 
     it('returns 400 if admin with email already exists', async () => {

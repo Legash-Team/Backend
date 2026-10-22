@@ -1,10 +1,12 @@
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 const Hospital = require('../models/Hospital');
 const Event = require('../models/Event');
 const Admin = require('../models/Admin');
 const Feedback = require('../models/Feedback');
 const emailService = require('../services/emailService');
-const generateResetCode = require('../utils/generateResetCode');
+
+const ADMIN_INVITE_EXPIRY_HOURS = 48;
 
 exports.listPendingHospitals = async (req, res, next) => {
   try {
@@ -278,12 +280,8 @@ exports.createAdmin = async (req, res, next) => {
       }
     }
 
-    const { code, expiresAt } = generateResetCode
-      ? generateResetCode()
-      : {
-          code: Math.floor(100000 + Math.random() * 900000).toString(),
-          expiresAt: new Date(Date.now() + 15 * 60 * 1000)
-        };
+    const setupToken = crypto.randomBytes(32).toString('hex');
+    const setupTokenExpiresAt = new Date(Date.now() + ADMIN_INVITE_EXPIRY_HOURS * 60 * 60 * 1000);
 
     const adminName =
       name && typeof name === 'string' && name.trim()
@@ -295,23 +293,18 @@ exports.createAdmin = async (req, res, next) => {
       email: cleanEmail,
       permissions: parsedPermissions,
       emailVerified: false,
-      verificationOtp: code,
-      verificationOtpExpiresAt: expiresAt,
-      setupToken: code,
-      setupTokenExpiresAt: expiresAt,
+      verificationOtp: null,
+      verificationOtpExpiresAt: null,
+      setupToken,
+      setupTokenExpiresAt,
       passwordHash: null,
       createdBy: req.user?.id || req.user?._id || null
     });
 
     await admin.save();
 
-    if (emailService.sendAdminVerificationOtp) {
-      emailService.sendAdminVerificationOtp(cleanEmail, code).catch((err) => {
-        console.warn('[WARN] Background admin verification OTP error:', err.message);
-      });
-    }
     if (emailService.sendAdminSetupEmail) {
-      emailService.sendAdminSetupEmail(cleanEmail, code, parsedPermissions).catch((err) => {
+      emailService.sendAdminSetupEmail(cleanEmail, setupToken, parsedPermissions).catch((err) => {
         console.warn('[WARN] Background admin setup email error:', err.message);
       });
     }
