@@ -108,6 +108,21 @@ describe('Unit Tests: Admin Model Schema & Blood Center Fields', () => {
       expect(validationError).toBeDefined();
       expect(validationError.errors['location.type']).toBeDefined();
     });
+
+    test('defaults termsAccepted to false and persists true when provided', async () => {
+      const defaultAdmin = await Admin.create({
+        name: 'Terms Default Admin',
+        email: 'terms.default@legash.org'
+      });
+      expect(defaultAdmin.termsAccepted).toBe(false);
+
+      const acceptedAdmin = await Admin.create({
+        name: 'Terms Accepted Admin',
+        email: 'terms.accepted@legash.org',
+        termsAccepted: true
+      });
+      expect(acceptedAdmin.termsAccepted).toBe(true);
+    });
   });
 
   describe('Indexes', () => {

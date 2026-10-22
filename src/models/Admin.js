@@ -9,7 +9,8 @@ const pointSchema = new mongoose.Schema(
     },
     coordinates: {
       type: [Number],
-      required: true
+      required: true,
+      default: undefined
     },
     address: {
       type: String,
@@ -50,6 +51,10 @@ const adminSchema = new mongoose.Schema(
     location: {
       type: pointSchema,
       default: undefined
+    },
+    termsAccepted: {
+      type: Boolean,
+      default: false
     },
     emailVerified: {
       type: Boolean,

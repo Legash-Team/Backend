@@ -14,7 +14,7 @@ exports.login = async (req, res, next) => {
     if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
       return res.status(400).json({
         success: false,
-        error: 'Email and password are required.',
+        error: 'Email and password are required.'
       });
     }
 
@@ -24,7 +24,7 @@ exports.login = async (req, res, next) => {
     const [hospital, superAdmin, admin] = await Promise.all([
       Hospital.findOne({ email: cleanEmail, isDeleted: { $ne: true } }),
       SuperAdmin.findOne({ email: cleanEmail }),
-      Admin.findOne({ email: cleanEmail, isDeleted: { $ne: true } }),
+      Admin.findOne({ email: cleanEmail, isDeleted: { $ne: true } })
     ]);
 
     // 1. Check Hospital Account
@@ -33,28 +33,28 @@ exports.login = async (req, res, next) => {
       if (!isPasswordMatch) {
         return res.status(401).json({
           success: false,
-          error: 'Invalid email or password.',
+          error: 'Invalid email or password.'
         });
       }
 
       if (!hospital.emailVerified) {
         return res.status(401).json({
           success: false,
-          error: 'Please verify your email before logging in.',
+          error: 'Please verify your email before logging in.'
         });
       }
 
       if (hospital.verificationStatus === 'pending') {
         return res.status(401).json({
           success: false,
-          error: 'Your account is still pending Super Admin approval.',
+          error: 'Your account is still pending Super Admin approval.'
         });
       }
 
       if (hospital.verificationStatus === 'rejected') {
         return res.status(401).json({
           success: false,
-          error: 'Your registration was not approved. Check your email for details.',
+          error: 'Your registration was not approved. Check your email for details.'
         });
       }
 
@@ -67,8 +67,8 @@ exports.login = async (req, res, next) => {
         user: {
           id: hospital._id.toString(),
           name: hospital.hospitalName,
-          email: hospital.email,
-        },
+          email: hospital.email
+        }
       });
     }
 
@@ -78,7 +78,7 @@ exports.login = async (req, res, next) => {
       if (!isAdminPasswordMatch) {
         return res.status(401).json({
           success: false,
-          error: 'Invalid email or password.',
+          error: 'Invalid email or password.'
         });
       }
 
@@ -91,8 +91,8 @@ exports.login = async (req, res, next) => {
         user: {
           id: superAdmin._id.toString(),
           name: superAdmin.name,
-          email: superAdmin.email,
-        },
+          email: superAdmin.email
+        }
       });
     }
 
@@ -102,14 +102,14 @@ exports.login = async (req, res, next) => {
       if (!isAdminMatch) {
         return res.status(401).json({
           success: false,
-          error: 'Invalid email or password.',
+          error: 'Invalid email or password.'
         });
       }
 
       const token = generateToken({
         id: admin._id,
         role: 'admin',
-        permissions: admin.permissions,
+        permissions: admin.permissions
       });
 
       return res.status(200).json({
@@ -120,14 +120,15 @@ exports.login = async (req, res, next) => {
         user: {
           id: admin._id.toString(),
           name: admin.name,
-          email: admin.email,
-        },
+          centerName: admin.centerName || undefined,
+          email: admin.email
+        }
       });
     }
 
     return res.status(401).json({
       success: false,
-      error: 'Invalid email or password.',
+      error: 'Invalid email or password.'
     });
   } catch (error) {
     next(error);
@@ -136,44 +137,186 @@ exports.login = async (req, res, next) => {
 
 exports.adminSetup = async (req, res, next) => {
   try {
-    const { setupToken, password, confirmPassword, token } = req.body;
+    const {
+      setupToken,
+      token,
+      centerName,
+      phone,
+      password,
+      confirmPassword,
+      location,
+      termsAccepted,
+      agreedToTerms
+    } = req.body;
+
     const activeToken = setupToken || token;
 
-    if (!activeToken || !password) {
+    if (!activeToken || typeof activeToken !== 'string' || !activeToken.trim()) {
       return res.status(400).json({
         success: false,
-        error: 'setupToken and password are required.',
+        error: 'Invitation setup token is required.'
       });
     }
 
-    if (confirmPassword && password !== confirmPassword) {
-      return res.status(400).json({
-        success: false,
-        error: 'Password confirmation does not match.',
-      });
-    }
-
+    const cleanToken = activeToken.trim();
     const admin = await Admin.findOne({
-      setupToken: activeToken.trim(),
-      setupTokenExpiresAt: { $gt: new Date() },
+      setupToken: cleanToken,
+      isDeleted: { $ne: true }
     });
 
     if (!admin) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid or expired setup token.',
+        error: 'Invalid or expired setup token.'
       });
     }
 
+    if (!admin.setupTokenExpiresAt || admin.setupTokenExpiresAt < new Date()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid or expired setup token.'
+      });
+    }
+
+    if (!centerName || typeof centerName !== 'string' || !centerName.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Blood Center name is required.'
+      });
+    }
+
+    if (!phone || typeof phone !== 'string' || !phone.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Phone number is required.'
+      });
+    }
+
+    if (!password || typeof password !== 'string' || password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password must be at least 8 characters long.'
+      });
+    }
+
+    if (confirmPassword !== undefined && confirmPassword !== password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password confirmation does not match.'
+      });
+    }
+
+    const isTermsAccepted = termsAccepted !== undefined ? termsAccepted : agreedToTerms;
+    if (isTermsAccepted !== true) {
+      return res.status(400).json({
+        success: false,
+        error: 'You must agree to the Terms of Service and Privacy Policy.'
+      });
+    }
+
+    if (location !== undefined && location !== null) {
+      if (typeof location !== 'object' || Array.isArray(location)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Location must be an object with coordinates or lat/lng.'
+        });
+      }
+
+      let lat, lng;
+      if (
+        (location.lat !== undefined || location.latitude !== undefined) &&
+        (location.lng !== undefined || location.longitude !== undefined)
+      ) {
+        lat = location.lat !== undefined ? location.lat : location.latitude;
+        lng = location.lng !== undefined ? location.lng : location.longitude;
+      } else if (Array.isArray(location.coordinates)) {
+        if (location.coordinates.length !== 2) {
+          return res.status(400).json({
+            success: false,
+            error: 'Location coordinates must contain [longitude, latitude].'
+          });
+        }
+        lng = location.coordinates[0];
+        lat = location.coordinates[1];
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: 'Location must include valid coordinates or lat/lng.'
+        });
+      }
+
+      if (
+        typeof lat !== 'number' ||
+        typeof lng !== 'number' ||
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng) ||
+        Number.isNaN(lat) ||
+        Number.isNaN(lng)
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: 'Latitude and longitude must be valid finite numbers.'
+        });
+      }
+
+      if (lat < -90 || lat > 90) {
+        return res.status(400).json({
+          success: false,
+          error: 'Latitude must be between -90 and 90 degrees.'
+        });
+      }
+
+      if (lng < -180 || lng > 180) {
+        return res.status(400).json({
+          success: false,
+          error: 'Longitude must be between -180 and 180 degrees.'
+        });
+      }
+
+      admin.location = {
+        type: 'Point',
+        coordinates: [lng, lat],
+        ...(typeof location.address === 'string' && location.address.trim()
+          ? { address: location.address.trim() }
+          : {})
+      };
+    }
+
+    // Persist profile and secure setup state
+    admin.centerName = centerName.trim();
+    admin.name = centerName.trim();
+    admin.phone = phone.trim();
+    admin.termsAccepted = true;
     admin.passwordHash = await hashPassword(password);
     admin.setupToken = null;
     admin.setupTokenExpiresAt = null;
+    admin.verificationOtp = null;
+    admin.verificationOtpExpiresAt = null;
     admin.emailVerified = true;
+
     await admin.save();
 
     return res.status(200).json({
       success: true,
-      message: 'Password configured successfully. You can now log in.',
+      message: 'Blood Center registration completed successfully. You can now log in.',
+      admin: {
+        id: admin._id.toString(),
+        name: admin.name,
+        centerName: admin.centerName,
+        email: admin.email,
+        phone: admin.phone,
+        permissions: admin.permissions,
+        emailVerified: admin.emailVerified,
+        termsAccepted: admin.termsAccepted,
+        ...(admin.location
+          ? {
+              location: {
+                lat: admin.location.coordinates[1],
+                lng: admin.location.coordinates[0]
+              }
+            }
+          : {})
+      }
     });
   } catch (error) {
     next(error);
@@ -189,7 +332,7 @@ exports.forgotPassword = async (req, res, next) => {
     if (!email) {
       return res.status(400).json({
         success: false,
-        error: 'Email is required.',
+        error: 'Email is required.'
       });
     }
 
@@ -199,7 +342,7 @@ exports.forgotPassword = async (req, res, next) => {
     const [hospital, superAdmin, admin] = await Promise.all([
       Hospital.findOne({ email: cleanEmail }),
       SuperAdmin.findOne({ email: cleanEmail }),
-      Admin.findOne({ email: cleanEmail }),
+      Admin.findOne({ email: cleanEmail })
     ]);
 
     if (hospital) {
@@ -227,7 +370,7 @@ exports.forgotPassword = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      message: 'If an account exists with that email, a reset code has been sent.',
+      message: 'If an account exists with that email, a reset code has been sent.'
     });
   } catch (error) {
     next(error);
@@ -241,7 +384,7 @@ exports.resetPassword = async (req, res, next) => {
     if (!email || !code || !newPassword) {
       return res.status(400).json({
         success: false,
-        error: 'Email, code, and new password are required.',
+        error: 'Email, code, and new password are required.'
       });
     }
 
@@ -253,7 +396,7 @@ exports.resetPassword = async (req, res, next) => {
       if (hospital.resetCodeExpiresAt && hospital.resetCodeExpiresAt < new Date()) {
         return res.status(400).json({
           success: false,
-          error: 'Invalid or expired reset code.',
+          error: 'Invalid or expired reset code.'
         });
       }
 
@@ -264,7 +407,7 @@ exports.resetPassword = async (req, res, next) => {
 
       return res.status(200).json({
         success: true,
-        message: 'Password reset successful. You can now log in with your new password.',
+        message: 'Password reset successful. You can now log in with your new password.'
       });
     }
 
@@ -273,7 +416,7 @@ exports.resetPassword = async (req, res, next) => {
       if (superAdmin.resetCodeExpiresAt && superAdmin.resetCodeExpiresAt < new Date()) {
         return res.status(400).json({
           success: false,
-          error: 'Invalid or expired reset code.',
+          error: 'Invalid or expired reset code.'
         });
       }
 
@@ -284,7 +427,7 @@ exports.resetPassword = async (req, res, next) => {
 
       return res.status(200).json({
         success: true,
-        message: 'Password reset successful. You can now log in with your new password.',
+        message: 'Password reset successful. You can now log in with your new password.'
       });
     }
 
@@ -293,7 +436,7 @@ exports.resetPassword = async (req, res, next) => {
       if (admin.setupTokenExpiresAt && admin.setupTokenExpiresAt < new Date()) {
         return res.status(400).json({
           success: false,
-          error: 'Invalid or expired reset code.',
+          error: 'Invalid or expired reset code.'
         });
       }
 
@@ -304,13 +447,13 @@ exports.resetPassword = async (req, res, next) => {
 
       return res.status(200).json({
         success: true,
-        message: 'Password reset successful. You can now log in with your new password.',
+        message: 'Password reset successful. You can now log in with your new password.'
       });
     }
 
     return res.status(400).json({
       success: false,
-      error: 'Invalid or expired reset code.',
+      error: 'Invalid or expired reset code.'
     });
   } catch (error) {
     next(error);
