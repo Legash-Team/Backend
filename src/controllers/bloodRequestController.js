@@ -7,6 +7,7 @@ const { sendBloodAlert } = require('../services/pushService');
 const { sendBloodAlertSms } = require('../services/smsService');
 const { DEFAULT_SEARCH_RADIUS_KM } = require('../utils/constants');
 const { getCompatibleDonorTypes, isBloodTypeKnown } = require('../utils/bloodCompatibility');
+const { notifiableDonorFilter } = require('../utils/donationEligibility');
 
 exports.create = async (req, res, next) => {
   try {
@@ -42,6 +43,7 @@ exports.create = async (req, res, next) => {
     const matchedDonors = await Donor.find({
       bloodType: { $in: compatibleTypes },
       isDeleted: { $ne: true },
+      ...notifiableDonorFilter(),
       location: {
         $near: {
           $geometry: hospital.location,
