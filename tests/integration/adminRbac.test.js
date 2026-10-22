@@ -83,7 +83,8 @@ describe('Integration Tests: Admin Creation, Listing, OTP Verification & RBAC', 
 
       const savedAdmin = await Admin.findOne({ email: 'approver@legash.org' });
       expect(savedAdmin).toBeDefined();
-      expect(savedAdmin.verificationOtp).toHaveLength(6);
+      expect(savedAdmin.verificationOtp).toBeNull();
+      expect(savedAdmin.setupToken).toMatch(/^[0-9a-f]{64}$/);
       expect(savedAdmin.emailVerified).toBe(false);
     });
 

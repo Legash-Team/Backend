@@ -5,15 +5,15 @@ const Event = require('../models/Event');
 const Admin = require('../models/Admin');
 const Feedback = require('../models/Feedback');
 const emailService = require('../services/emailService');
-const generateResetCode = require('../utils/generateResetCode');
-const { hashPassword } = require('../utils/hashPassword');
+
+const ADMIN_INVITE_EXPIRY_HOURS = 48;
 
 exports.listPendingHospitals = async (req, res, next) => {
   try {
     const hospitals = await Hospital.find({
       verificationStatus: 'pending',
       emailVerified: true,
-      isDeleted: { $ne: true },
+      isDeleted: { $ne: true }
     }).sort({ createdAt: -1 });
 
     const formattedHospitals = hospitals.map((hospital) => {
@@ -27,13 +27,13 @@ exports.listPendingHospitals = async (req, res, next) => {
         phone: hospital.phone,
         licenseNumber: hospital.licenseNumber,
         location: { lat, lng },
-        registeredAt: hospital.createdAt,
+        registeredAt: hospital.createdAt
       };
     });
 
     return res.status(200).json({
       success: true,
-      hospitals: formattedHospitals,
+      hospitals: formattedHospitals
     });
   } catch (error) {
     next(error);
@@ -47,16 +47,19 @@ exports.approveHospital = async (req, res, next) => {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
-        error: 'This hospital is not pending approval.',
+        error: 'This hospital is not pending approval.'
       });
     }
 
     const hospital = await Hospital.findById(id);
 
-    if (!hospital || (hospital.verificationStatus !== 'pending' && hospital.verificationStatus !== 'rejected')) {
+    if (
+      !hospital ||
+      (hospital.verificationStatus !== 'pending' && hospital.verificationStatus !== 'rejected')
+    ) {
       return res.status(400).json({
         success: false,
-        error: 'This hospital is not eligible for approval.',
+        error: 'This hospital is not eligible for approval.'
       });
     }
 
@@ -70,7 +73,7 @@ exports.approveHospital = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Hospital approved. They have been notified and can now log in.',
+      message: 'Hospital approved. They have been notified and can now log in.'
     });
   } catch (error) {
     next(error);
@@ -87,7 +90,7 @@ exports.rejectHospital = async (req, res, next) => {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
-        error: 'This hospital is not pending approval.',
+        error: 'This hospital is not pending approval.'
       });
     }
 
@@ -96,7 +99,7 @@ exports.rejectHospital = async (req, res, next) => {
     if (!hospital || hospital.verificationStatus !== 'pending') {
       return res.status(400).json({
         success: false,
-        error: 'This hospital is not pending approval.',
+        error: 'This hospital is not pending approval.'
       });
     }
 
@@ -104,7 +107,7 @@ exports.rejectHospital = async (req, res, next) => {
     if (!finalReason) {
       return res.status(400).json({
         success: false,
-        error: 'A rejection reason is required.',
+        error: 'A rejection reason is required.'
       });
     }
 
@@ -118,7 +121,7 @@ exports.rejectHospital = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Hospital rejected. They have been notified.',
+      message: 'Hospital rejected. They have been notified.'
     });
   } catch (error) {
     next(error);
@@ -128,7 +131,10 @@ exports.rejectHospital = async (req, res, next) => {
 exports.listFeedbacks = async (req, res, next) => {
   try {
     const feedbacks = await Feedback.find()
-      .populate('hospital', 'hospitalName email phone licenseNumber location verificationStatus createdAt')
+      .populate(
+        'hospital',
+        'hospitalName email phone licenseNumber location verificationStatus createdAt'
+      )
       .sort({ createdAt: -1 });
 
     const formatted = await Promise.all(
@@ -148,7 +154,7 @@ exports.listFeedbacks = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      feedbacks: formatted,
+      feedbacks: formatted
     });
   } catch (error) {
     next(error);
@@ -170,7 +176,7 @@ exports.markFeedbackReviewed = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: 'Feedback marked as reviewed.',
-      feedback,
+      feedback
     });
   } catch (error) {
     next(error);
@@ -184,7 +190,7 @@ exports.createEvent = async (req, res, next) => {
     if (!description || !closesAt) {
       return res.status(400).json({
         success: false,
-        error: 'Description and closesAt timestamp are required.',
+        error: 'Description and closesAt timestamp are required.'
       });
     }
 
@@ -195,13 +201,13 @@ exports.createEvent = async (req, res, next) => {
       applyLink: applyLink || null,
       closesAt: new Date(closesAt),
       createdBy: req.user?.id,
-      creatorModel: req.user?.role === 'superadmin' ? 'SuperAdmin' : 'Admin',
+      creatorModel: req.user?.role === 'superadmin' ? 'SuperAdmin' : 'Admin'
     });
 
     return res.status(201).json({
       success: true,
       message: 'Event posted successfully.',
-      event,
+      event
     });
   } catch (error) {
     next(error);
@@ -213,7 +219,7 @@ exports.listAdminEvents = async (req, res, next) => {
     const events = await Event.find().sort({ createdAt: -1 });
     return res.status(200).json({
       success: true,
-      events,
+      events
     });
   } catch (error) {
     next(error);
@@ -224,10 +230,10 @@ exports.createAdmin = async (req, res, next) => {
   try {
     const { name, email, permissions, role } = req.body;
 
-    if (!name || !email) {
+    if (!email || typeof email !== 'string' || !email.trim()) {
       return res.status(400).json({
         success: false,
-        error: 'Name and email are required.',
+        error: 'Email is required.'
       });
     }
 
@@ -237,13 +243,13 @@ exports.createAdmin = async (req, res, next) => {
     if (existingAdmin) {
       return res.status(400).json({
         success: false,
-        error: 'An Admin with this email already exists.',
+        error: 'An Admin with this email already exists.'
       });
     }
 
     let parsedPermissions = {
       canApproveHospitals: false,
-      canPostEvents: false,
+      canPostEvents: false
     };
 
     if (permissions && typeof permissions === 'object') {
@@ -254,7 +260,11 @@ exports.createAdmin = async (req, res, next) => {
       if (lowerRole.includes('approve') || lowerRole === 'can approve hospitals') {
         parsedPermissions.canApproveHospitals = true;
       }
-      if (lowerRole.includes('post') || lowerRole.includes('event') || lowerRole === 'can post events') {
+      if (
+        lowerRole.includes('post') ||
+        lowerRole.includes('event') ||
+        lowerRole === 'can post events'
+      ) {
         parsedPermissions.canPostEvents = true;
       }
       if (lowerRole.includes('both') || lowerRole === 'all') {
@@ -270,32 +280,31 @@ exports.createAdmin = async (req, res, next) => {
       }
     }
 
-    const { code, expiresAt } = generateResetCode ? generateResetCode() : {
-      code: Math.floor(100000 + Math.random() * 900000).toString(),
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-    };
+    const setupToken = crypto.randomBytes(32).toString('hex');
+    const setupTokenExpiresAt = new Date(Date.now() + ADMIN_INVITE_EXPIRY_HOURS * 60 * 60 * 1000);
+
+    const adminName =
+      name && typeof name === 'string' && name.trim()
+        ? name.trim()
+        : cleanEmail.split('@')[0] || 'Admin';
 
     const admin = new Admin({
-      name: name.trim(),
+      name: adminName,
       email: cleanEmail,
       permissions: parsedPermissions,
       emailVerified: false,
-      verificationOtp: code,
-      verificationOtpExpiresAt: expiresAt,
-      setupToken: code,
-      setupTokenExpiresAt: expiresAt,
+      verificationOtp: null,
+      verificationOtpExpiresAt: null,
+      setupToken,
+      setupTokenExpiresAt,
       passwordHash: null,
+      createdBy: req.user?.id || req.user?._id || null
     });
 
     await admin.save();
 
-    if (emailService.sendAdminVerificationOtp) {
-      emailService.sendAdminVerificationOtp(cleanEmail, code).catch((err) => {
-        console.warn('[WARN] Background admin verification OTP error:', err.message);
-      });
-    }
     if (emailService.sendAdminSetupEmail) {
-      emailService.sendAdminSetupEmail(cleanEmail, code, parsedPermissions).catch((err) => {
+      emailService.sendAdminSetupEmail(cleanEmail, setupToken, parsedPermissions).catch((err) => {
         console.warn('[WARN] Background admin setup email error:', err.message);
       });
     }
@@ -309,8 +318,8 @@ exports.createAdmin = async (req, res, next) => {
         email: admin.email,
         permissions: admin.permissions,
         emailVerified: admin.emailVerified,
-        createdAt: admin.createdAt,
-      },
+        createdAt: admin.createdAt
+      }
     });
   } catch (error) {
     next(error);
@@ -327,12 +336,12 @@ exports.listAdmins = async (req, res, next) => {
       email: admin.email,
       permissions: admin.permissions,
       emailVerified: admin.emailVerified,
-      createdAt: admin.createdAt,
+      createdAt: admin.createdAt
     }));
 
     return res.status(200).json({
       success: true,
-      admins: formattedAdmins,
+      admins: formattedAdmins
     });
   } catch (error) {
     next(error);
@@ -347,7 +356,7 @@ exports.verifyAdminOtp = async (req, res, next) => {
     if (!email || !submittedOtp) {
       return res.status(400).json({
         success: false,
-        error: 'Email and OTP are required.',
+        error: 'Email and OTP are required.'
       });
     }
 
@@ -357,28 +366,28 @@ exports.verifyAdminOtp = async (req, res, next) => {
     if (!admin) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid email or OTP.',
+        error: 'Invalid email or OTP.'
       });
     }
 
     if (admin.emailVerified) {
       return res.status(400).json({
         success: false,
-        error: 'Email is already verified.',
+        error: 'Email is already verified.'
       });
     }
 
     if (!admin.verificationOtp || admin.verificationOtp !== submittedOtp) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid or expired OTP.',
+        error: 'Invalid or expired OTP.'
       });
     }
 
     if (admin.verificationOtpExpiresAt && admin.verificationOtpExpiresAt < new Date()) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid or expired OTP.',
+        error: 'Invalid or expired OTP.'
       });
     }
 
@@ -389,7 +398,7 @@ exports.verifyAdminOtp = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Admin email verified successfully. You can now set up your password.',
+      message: 'Admin email verified successfully. You can now set up your password.'
     });
   } catch (error) {
     next(error);

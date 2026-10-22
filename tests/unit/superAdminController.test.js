@@ -36,7 +36,7 @@ describe('Super Admin Controller Unit Tests', () => {
         passwordHash: 'hashed_password_1',
         location: {
           type: 'Point',
-          coordinates: [38.7468, 9.0320] // [lng, lat]
+          coordinates: [38.7468, 9.032] // [lng, lat]
         },
         emailVerified: true,
         verificationStatus: 'pending',
@@ -54,7 +54,7 @@ describe('Super Admin Controller Unit Tests', () => {
         passwordHash: 'hashed_password_2',
         location: {
           type: 'Point',
-          coordinates: [38.7500, 9.0400]
+          coordinates: [38.75, 9.04]
         },
         emailVerified: false,
         verificationStatus: 'pending',
@@ -70,7 +70,7 @@ describe('Super Admin Controller Unit Tests', () => {
         passwordHash: 'hashed_password_3',
         location: {
           type: 'Point',
-          coordinates: [38.7600, 9.0500]
+          coordinates: [38.76, 9.05]
         },
         emailVerified: true,
         verificationStatus: 'approved',
@@ -86,7 +86,7 @@ describe('Super Admin Controller Unit Tests', () => {
         passwordHash: 'hashed_password_4',
         location: {
           type: 'Point',
-          coordinates: [38.7700, 9.0600]
+          coordinates: [38.77, 9.06]
         },
         emailVerified: true,
         verificationStatus: 'rejected',
@@ -110,7 +110,7 @@ describe('Super Admin Controller Unit Tests', () => {
       expect(returnedHospital.email).toBe('stpaul@example.com');
       expect(returnedHospital.phone).toBe('+251911111111');
       expect(returnedHospital.licenseNumber).toBe('LIC-1001');
-      expect(returnedHospital.location).toEqual({ lat: 9.0320, lng: 38.7468 });
+      expect(returnedHospital.location).toEqual({ lat: 9.032, lng: 38.7468 });
       expect(returnedHospital.registeredAt).toBeDefined();
 
       // Ensure sensitive fields are stripped
@@ -135,7 +135,9 @@ describe('Super Admin Controller Unit Tests', () => {
         agreedToTerms: true
       });
 
-      const sendApprovalEmailSpy = jest.spyOn(emailService, 'sendApprovalEmail').mockResolvedValue();
+      const sendApprovalEmailSpy = jest
+        .spyOn(emailService, 'sendApprovalEmail')
+        .mockResolvedValue();
 
       const req = { params: { id: hospital._id.toString() } };
       const res = mockResponse();
@@ -173,7 +175,9 @@ describe('Super Admin Controller Unit Tests', () => {
         agreedToTerms: true
       });
 
-      const sendApprovalEmailSpy = jest.spyOn(emailService, 'sendApprovalEmail').mockResolvedValue();
+      const sendApprovalEmailSpy = jest
+        .spyOn(emailService, 'sendApprovalEmail')
+        .mockResolvedValue();
 
       const req = {
         params: { id: hospital._id.toString() },
@@ -211,7 +215,9 @@ describe('Super Admin Controller Unit Tests', () => {
         agreedToTerms: true
       });
 
-      const sendApprovalEmailSpy = jest.spyOn(emailService, 'sendApprovalEmail').mockResolvedValue();
+      const sendApprovalEmailSpy = jest
+        .spyOn(emailService, 'sendApprovalEmail')
+        .mockResolvedValue();
 
       const req = {
         params: { id: hospital._id.toString() }
@@ -265,7 +271,9 @@ describe('Super Admin Controller Unit Tests', () => {
         agreedToTerms: true
       });
 
-      const sendRejectionEmailSpy = jest.spyOn(emailService, 'sendRejectionEmail').mockResolvedValue();
+      const sendRejectionEmailSpy = jest
+        .spyOn(emailService, 'sendRejectionEmail')
+        .mockResolvedValue();
 
       const req = {
         params: { id: hospital._id.toString() },
@@ -287,7 +295,10 @@ describe('Super Admin Controller Unit Tests', () => {
       expect(updatedHospital.rejectionReason).toBe('Does not meet requirements');
 
       expect(sendRejectionEmailSpy).toHaveBeenCalledTimes(1);
-      expect(sendRejectionEmailSpy).toHaveBeenCalledWith(hospital.email, 'Does not meet requirements');
+      expect(sendRejectionEmailSpy).toHaveBeenCalledWith(
+        hospital.email,
+        'Does not meet requirements'
+      );
 
       sendRejectionEmailSpy.mockRestore();
     });
@@ -305,7 +316,9 @@ describe('Super Admin Controller Unit Tests', () => {
         agreedToTerms: true
       });
 
-      const sendRejectionEmailSpy = jest.spyOn(emailService, 'sendRejectionEmail').mockResolvedValue();
+      const sendRejectionEmailSpy = jest
+        .spyOn(emailService, 'sendRejectionEmail')
+        .mockResolvedValue();
 
       const req = {
         params: { id: hospital._id.toString() },
@@ -339,7 +352,9 @@ describe('Super Admin Controller Unit Tests', () => {
         agreedToTerms: true
       });
 
-      const sendRejectionEmailSpy = jest.spyOn(emailService, 'sendRejectionEmail').mockResolvedValue();
+      const sendRejectionEmailSpy = jest
+        .spyOn(emailService, 'sendRejectionEmail')
+        .mockResolvedValue();
 
       const req = {
         params: { id: hospital._id.toString() },
@@ -409,8 +424,13 @@ describe('Super Admin Controller Unit Tests', () => {
   });
 
   describe('createAdmin', () => {
-    it('creates an admin with permissions object, sends verification OTP, and returns 201', async () => {
-      const sendAdminOtpSpy = jest.spyOn(emailService, 'sendAdminVerificationOtp').mockResolvedValue();
+    it('creates an admin with permissions object, sends setup email, and returns 201', async () => {
+      const sendSetupEmailSpy = jest
+        .spyOn(emailService, 'sendAdminSetupEmail')
+        .mockResolvedValue();
+      const sendAdminOtpSpy = jest
+        .spyOn(emailService, 'sendAdminVerificationOtp')
+        .mockResolvedValue();
 
       const req = {
         body: {
@@ -439,15 +459,25 @@ describe('Super Admin Controller Unit Tests', () => {
       // Verify DB record
       const dbAdmin = await Admin.findOne({ email: 'abebe.admin@example.com' });
       expect(dbAdmin).toBeDefined();
-      expect(dbAdmin.verificationOtp).toHaveLength(6);
+      expect(dbAdmin.verificationOtp).toBeNull();
+      expect(dbAdmin.verificationOtpExpiresAt).toBeNull();
+      expect(dbAdmin.setupToken).toMatch(/^[0-9a-f]{64}$/);
       expect(dbAdmin.emailVerified).toBe(false);
-      expect(sendAdminOtpSpy).toHaveBeenCalledWith('abebe.admin@example.com', dbAdmin.verificationOtp);
+      expect(sendSetupEmailSpy).toHaveBeenCalledWith(
+        'abebe.admin@example.com',
+        dbAdmin.setupToken,
+        { canApproveHospitals: true, canPostEvents: false }
+      );
+      expect(sendAdminOtpSpy).not.toHaveBeenCalled();
 
+      sendSetupEmailSpy.mockRestore();
       sendAdminOtpSpy.mockRestore();
     });
 
     it('creates an admin with role string "both"', async () => {
-      const sendAdminOtpSpy = jest.spyOn(emailService, 'sendAdminVerificationOtp').mockResolvedValue();
+      const sendSetupEmailSpy = jest
+        .spyOn(emailService, 'sendAdminSetupEmail')
+        .mockResolvedValue();
 
       const req = {
         body: {
@@ -465,13 +495,13 @@ describe('Super Admin Controller Unit Tests', () => {
       expect(res.body.admin.permissions.canApproveHospitals).toBe(true);
       expect(res.body.admin.permissions.canPostEvents).toBe(true);
 
-      sendAdminOtpSpy.mockRestore();
+      sendSetupEmailSpy.mockRestore();
     });
 
-    it('returns 400 if name or email is missing', async () => {
+    it('returns 400 if email is missing', async () => {
       const req = {
         body: {
-          email: 'missingname@example.com'
+          name: 'Missing Email Admin'
         }
       };
       const res = mockResponse();
@@ -481,7 +511,34 @@ describe('Super Admin Controller Unit Tests', () => {
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.body.success).toBe(false);
-      expect(res.body.error).toBe('Name and email are required.');
+      expect(res.body.error).toBe('Email is required.');
+    });
+
+    it('creates an admin with email and permissions without requiring name', async () => {
+      const sendSetupEmailSpy = jest
+        .spyOn(emailService, 'sendAdminSetupEmail')
+        .mockResolvedValue();
+
+      const req = {
+        body: {
+          email: 'noname.admin@example.com',
+          permissions: {
+            canApproveHospitals: true,
+            canPostEvents: false
+          }
+        }
+      };
+      const res = mockResponse();
+      const next = jest.fn();
+
+      await superAdminController.createAdmin(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.body.admin.email).toBe('noname.admin@example.com');
+      expect(res.body.admin.name).toBe('noname.admin');
+      expect(res.body.admin.permissions.canApproveHospitals).toBe(true);
+
+      sendSetupEmailSpy.mockRestore();
     });
 
     it('returns 400 if admin with email already exists', async () => {
@@ -535,7 +592,7 @@ describe('Super Admin Controller Unit Tests', () => {
       expect(res.body).success;
       expect(res.body.admins).toHaveLength(2);
 
-      res.body.admins.forEach(admin => {
+      res.body.admins.forEach((admin) => {
         expect(admin.id).toBeDefined();
         expect(admin.name).toBeDefined();
         expect(admin.email).toBeDefined();
@@ -756,13 +813,13 @@ describe('Super Admin Controller Unit Tests', () => {
         email: 'hospital1@example.com',
         hospitalName: 'Hospital 1',
         message: 'First feedback',
-        status: 'new',
+        status: 'new'
       });
       await Feedback.create({
         email: 'hospital2@example.com',
         hospitalName: 'Hospital 2',
         message: 'Second feedback',
-        status: 'reviewed',
+        status: 'reviewed'
       });
 
       const req = {};
@@ -781,7 +838,7 @@ describe('Super Admin Controller Unit Tests', () => {
         email: 'hospital@example.com',
         hospitalName: 'Hospital Review Test',
         message: 'Please review our registration appeal',
-        status: 'new',
+        status: 'new'
       });
 
       const req = { params: { id: feedback._id.toString() } };
@@ -817,8 +874,12 @@ describe('Super Admin Controller Unit Tests', () => {
     it('executes sendApprovalEmail, sendRejectionEmail, and sendAdminVerificationOtp in dev mock mode without error', async () => {
       process.env.EMAIL_USER = 'mock@example.com';
       await expect(emailService.sendApprovalEmail('hospital@example.com')).resolves.not.toThrow();
-      await expect(emailService.sendRejectionEmail('hospital@example.com', 'Reason here')).resolves.not.toThrow();
-      await expect(emailService.sendAdminVerificationOtp('admin@example.com', '123456')).resolves.not.toThrow();
+      await expect(
+        emailService.sendRejectionEmail('hospital@example.com', 'Reason here')
+      ).resolves.not.toThrow();
+      await expect(
+        emailService.sendAdminVerificationOtp('admin@example.com', '123456')
+      ).resolves.not.toThrow();
     });
   });
 });

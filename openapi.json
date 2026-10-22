@@ -1182,7 +1182,8 @@
     "/api/superadmin/admins": {
       "post": {
         "tags": ["Super Admin & Admin RBAC"],
-        "summary": "Create scoped Admin account & trigger setup invitation",
+        "summary": "Invite Admin (Blood Center) & trigger setup link",
+        "description": "Creates an unverified Admin account and sends an invitation email containing only a secure setup link with a 64-hex token (no OTP is sent at invitation).",
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
           "required": true,
@@ -1257,18 +1258,35 @@
     "/api/auth/admin/setup": {
       "post": {
         "tags": ["Shared Auth"],
-        "summary": "Configure new Admin password using setup token",
+        "summary": "Complete invited Admin (Blood Center) account setup and registration",
+        "description": "Validates invitation setup token, collects Blood Center profile fields, sets password, records terms acceptance, and marks email as verified.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["setupToken", "password"],
+                "required": ["token", "centerName", "phone", "password", "termsAccepted", "location"],
                 "properties": {
-                  "setupToken": { "type": "string", "example": "token_hex_32_chars" },
+                  "token": { "type": "string", "description": "64-hex setup token (alias: setupToken)", "example": "4f8a9b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a" },
+                  "setupToken": { "type": "string", "description": "Alias for token" },
+                  "centerName": { "type": "string", "minLength": 2, "maxLength": 120, "example": "Addis Ababa Regional Blood Bank" },
+                  "phone": { "type": "string", "pattern": "^\\+251\\d{9}$", "example": "+251115510000" },
                   "password": { "type": "string", "minLength": 8, "example": "AdminPassSecure123!" },
-                  "confirmPassword": { "type": "string", "minLength": 8, "example": "AdminPassSecure123!" }
+                  "confirmPassword": { "type": "string", "minLength": 8, "example": "AdminPassSecure123!" },
+                  "location": {
+                    "type": "object",
+                    "required": ["lat", "lng", "address"],
+                    "properties": {
+                      "lat": { "type": "number", "minimum": -90, "maximum": 90, "example": 9.0152 },
+                      "lng": { "type": "number", "minimum": -180, "maximum": 180, "example": 38.7512 },
+                      "latitude": { "type": "number", "description": "Alias for lat" },
+                      "longitude": { "type": "number", "description": "Alias for lng" },
+                      "address": { "type": "string", "minLength": 3, "maxLength": 200, "example": "Stadium Area, Addis Ababa" }
+                    }
+                  },
+                  "termsAccepted": { "type": "boolean", "description": "Agreement to Terms of Service and Privacy Policy (alias: agreedToTerms)", "example": true },
+                  "agreedToTerms": { "type": "boolean", "description": "Alias for termsAccepted" }
                 }
               }
             }
@@ -1276,14 +1294,51 @@
         },
         "responses": {
           "200": {
-            "description": "Admin password established. Account ready for login.",
+            "description": "Blood Center registration completed successfully. Account ready for login.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message", "admin"],
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Blood Center registration completed successfully. You can now log in." },
+                    "admin": {
+                      "type": "object",
+                      "required": ["id", "name", "centerName", "email", "phone", "permissions", "emailVerified", "termsAccepted", "location"],
+                      "properties": {
+                        "id": { "type": "string", "example": "6716bc8d1f7c81a94e8a1234" },
+                        "name": { "type": "string", "example": "Addis Ababa Regional Blood Bank" },
+                        "centerName": { "type": "string", "example": "Addis Ababa Regional Blood Bank" },
+                        "email": { "type": "string", "format": "email", "example": "center@legash.org" },
+                        "phone": { "type": "string", "example": "+251115510000" },
+                        "permissions": {
+                          "type": "object",
+                          "properties": {
+                            "canApproveHospitals": { "type": "boolean", "example": true },
+                            "canPostEvents": { "type": "boolean", "example": false }
+                          }
+                        },
+                        "emailVerified": { "type": "boolean", "example": true },
+                        "termsAccepted": { "type": "boolean", "example": true },
+                        "location": {
+                          "type": "object",
+                          "required": ["lat", "lng", "address"],
+                          "properties": {
+                            "lat": { "type": "number", "example": 9.0152 },
+                            "lng": { "type": "number", "example": 38.7512 },
+                            "address": { "type": "string", "example": "Stadium Area, Addis Ababa" }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
               }
             }
           },
-          "400": { "$ref": "#/components/responses/400BadRequest" }
+          "400": { "$ref": "#/components/responses/400BadRequest" },
+          "429": { "$ref": "#/components/responses/429RateLimit" }
         }
       }
     },
@@ -1805,13 +1860,13 @@
       },
       "CreateAdminInput": {
         "type": "object",
-        "required": ["name", "email", "permissions"],
+        "description": "Payload for Super Admin to invite a new Admin (Blood Center). Only email is required. Invitation sends only a secure setup link (no OTP). Name is optional (defaults to the username part of the email address if omitted) and permissions is optional (when omitted, BOTH canApproveHospitals and canPostEvents default to false).",
+        "required": ["email"],
         "properties": {
           "name": { "type": "string", "example": "EBTBS Officer" },
           "email": { "type": "string", "format": "email", "example": "officer@legash.org" },
           "permissions": {
             "type": "object",
-            "required": ["canApproveHospitals", "canPostEvents"],
             "properties": {
               "canApproveHospitals": { "type": "boolean", "example": true },
               "canPostEvents": { "type": "boolean", "example": false }
@@ -1864,6 +1919,7 @@
             "properties": {
               "id": { "type": "string" },
               "name": { "type": "string" },
+              "centerName": { "type": "string", "nullable": true, "example": "Addis Ababa Regional Blood Bank" },
               "email": { "type": "string" }
             }
           }
