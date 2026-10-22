@@ -108,6 +108,9 @@ app.use('/api/donor/register', authLimiter);
 app.use('/api/donor/unlock', authLimiter);
 app.use('/api/donor/verify-otp', authLimiter);
 app.use('/api/hospital/verify-email', authLimiter);
+app.use('/api/auth/admin/setup', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/reset-password', authLimiter);
 
 // Serve raw OpenAPI 3.1.0 specification
 const openapiSpecPath = path.resolve(__dirname, 'openapi.json');

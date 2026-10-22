@@ -5,7 +5,8 @@ const Admin = require('../models/Admin');
 const { hashPassword, comparePassword } = require('../utils/hashPassword');
 const generateToken = require('../utils/generateToken');
 const generateResetCode = require('../utils/generateResetCode');
-const { sendPasswordResetEmail } = require('../services/emailService');
+const emailService = require('../services/emailService');
+const sendPasswordResetEmail = (...args) => emailService.sendPasswordResetEmail(...args);
 
 exports.login = async (req, res, next) => {
   try {
@@ -97,7 +98,14 @@ exports.login = async (req, res, next) => {
     }
 
     // 3. Check Admin Account
-    if (admin && admin.emailVerified && admin.passwordHash) {
+    if (admin) {
+      if (!admin.emailVerified || !admin.passwordHash) {
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid email or password.'
+        });
+      }
+
       const isAdminMatch = await comparePassword(password, admin.passwordHash);
       if (!isAdminMatch) {
         return res.status(401).json({
@@ -154,13 +162,15 @@ exports.adminSetup = async (req, res, next) => {
     if (!activeToken || typeof activeToken !== 'string' || !activeToken.trim()) {
       return res.status(400).json({
         success: false,
-        error: 'Invitation setup token is required.'
+        error: 'Invalid or expired setup token.'
       });
     }
 
     const cleanToken = activeToken.trim();
     const admin = await Admin.findOne({
       setupToken: cleanToken,
+      setupTokenExpiresAt: { $gt: new Date() },
+      passwordHash: null,
       isDeleted: { $ne: true }
     });
 
@@ -171,24 +181,23 @@ exports.adminSetup = async (req, res, next) => {
       });
     }
 
-    if (!admin.setupTokenExpiresAt || admin.setupTokenExpiresAt < new Date()) {
+    if (
+      !centerName ||
+      typeof centerName !== 'string' ||
+      centerName.trim().length < 2 ||
+      centerName.trim().length > 120
+    ) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid or expired setup token.'
+        error: 'Blood Center name must be between 2 and 120 characters.'
       });
     }
 
-    if (!centerName || typeof centerName !== 'string' || !centerName.trim()) {
+    const PHONE_PATTERN = /^\+251\d{9}$/;
+    if (!phone || typeof phone !== 'string' || !PHONE_PATTERN.test(phone.trim())) {
       return res.status(400).json({
         success: false,
-        error: 'Blood Center name is required.'
-      });
-    }
-
-    if (!phone || typeof phone !== 'string' || !phone.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Phone number is required.'
+        error: 'Phone must be in +251 format.'
       });
     }
 
@@ -214,73 +223,71 @@ exports.adminSetup = async (req, res, next) => {
       });
     }
 
-    if (location !== undefined && location !== null) {
-      if (typeof location !== 'object' || Array.isArray(location)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Location must be an object with coordinates or lat/lng.'
-        });
-      }
-
-      let lat, lng;
-      if (
-        (location.lat !== undefined || location.latitude !== undefined) &&
-        (location.lng !== undefined || location.longitude !== undefined)
-      ) {
-        lat = location.lat !== undefined ? location.lat : location.latitude;
-        lng = location.lng !== undefined ? location.lng : location.longitude;
-      } else if (Array.isArray(location.coordinates)) {
-        if (location.coordinates.length !== 2) {
-          return res.status(400).json({
-            success: false,
-            error: 'Location coordinates must contain [longitude, latitude].'
-          });
-        }
-        lng = location.coordinates[0];
-        lat = location.coordinates[1];
-      } else {
-        return res.status(400).json({
-          success: false,
-          error: 'Location must include valid coordinates or lat/lng.'
-        });
-      }
-
-      if (
-        typeof lat !== 'number' ||
-        typeof lng !== 'number' ||
-        !Number.isFinite(lat) ||
-        !Number.isFinite(lng) ||
-        Number.isNaN(lat) ||
-        Number.isNaN(lng)
-      ) {
-        return res.status(400).json({
-          success: false,
-          error: 'Latitude and longitude must be valid finite numbers.'
-        });
-      }
-
-      if (lat < -90 || lat > 90) {
-        return res.status(400).json({
-          success: false,
-          error: 'Latitude must be between -90 and 90 degrees.'
-        });
-      }
-
-      if (lng < -180 || lng > 180) {
-        return res.status(400).json({
-          success: false,
-          error: 'Longitude must be between -180 and 180 degrees.'
-        });
-      }
-
-      admin.location = {
-        type: 'Point',
-        coordinates: [lng, lat],
-        ...(typeof location.address === 'string' && location.address.trim()
-          ? { address: location.address.trim() }
-          : {})
-      };
+    if (!location || typeof location !== 'object' || Array.isArray(location)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Location is required.'
+      });
     }
+
+    let lat, lng;
+    if (
+      (location.lat !== undefined || location.latitude !== undefined) &&
+      (location.lng !== undefined || location.longitude !== undefined)
+    ) {
+      lat = location.lat !== undefined ? location.lat : location.latitude;
+      lng = location.lng !== undefined ? location.lng : location.longitude;
+    } else if (Array.isArray(location.coordinates) && location.coordinates.length === 2) {
+      lng = location.coordinates[0];
+      lat = location.coordinates[1];
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'Location must include valid coordinates or lat/lng.'
+      });
+    }
+
+    if (
+      typeof lat !== 'number' ||
+      typeof lng !== 'number' ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng) ||
+      Number.isNaN(lat) ||
+      Number.isNaN(lng)
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'Latitude and longitude must be valid finite numbers.'
+      });
+    }
+
+    if (lat < -90 || lat > 90) {
+      return res.status(400).json({
+        success: false,
+        error: 'Latitude must be between -90 and 90 degrees.'
+      });
+    }
+
+    if (lng < -180 || lng > 180) {
+      return res.status(400).json({
+        success: false,
+        error: 'Longitude must be between -180 and 180 degrees.'
+      });
+    }
+
+    const cleanAddress = typeof location.address === 'string' ? location.address.trim() : '';
+    if (!cleanAddress || cleanAddress.length < 3 || cleanAddress.length > 200) {
+      return res.status(400).json({
+        success: false,
+        error: 'Address is required and must be between 3 and 200 characters.'
+      });
+    }
+
+    admin.location = {
+      type: 'Point',
+      coordinates: [lng, lat],
+      address: cleanAddress
+    };
 
     // Persist profile and secure setup state
     admin.centerName = centerName.trim();
@@ -308,14 +315,11 @@ exports.adminSetup = async (req, res, next) => {
         permissions: admin.permissions,
         emailVerified: admin.emailVerified,
         termsAccepted: admin.termsAccepted,
-        ...(admin.location
-          ? {
-              location: {
-                lat: admin.location.coordinates[1],
-                lng: admin.location.coordinates[0]
-              }
-            }
-          : {})
+        location: {
+          lat: admin.location.coordinates[1],
+          lng: admin.location.coordinates[0],
+          address: admin.location.address
+        }
       }
     });
   } catch (error) {
@@ -360,12 +364,14 @@ exports.forgotPassword = async (req, res, next) => {
         console.warn('[WARN] Background email dispatch error:', err.message);
       });
     } else if (admin) {
-      admin.setupToken = code;
-      admin.setupTokenExpiresAt = expiresAt;
-      await admin.save();
-      sendPasswordResetEmail(cleanEmail, code).catch((err) => {
-        console.warn('[WARN] Background email dispatch error:', err.message);
-      });
+      if (admin.passwordHash) {
+        admin.setupToken = code;
+        admin.setupTokenExpiresAt = expiresAt;
+        await admin.save();
+        sendPasswordResetEmail(cleanEmail, code).catch((err) => {
+          console.warn('[WARN] Background email dispatch error:', err.message);
+        });
+      }
     }
 
     return res.status(200).json({
@@ -432,7 +438,7 @@ exports.resetPassword = async (req, res, next) => {
     }
 
     const admin = await Admin.findOne({ email: cleanEmail });
-    if (admin && admin.setupToken === code.trim()) {
+    if (admin && admin.passwordHash && admin.setupToken === code.trim()) {
       if (admin.setupTokenExpiresAt && admin.setupTokenExpiresAt < new Date()) {
         return res.status(400).json({
           success: false,
