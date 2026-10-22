@@ -31,9 +31,17 @@ const donorSchema = new mongoose.Schema(
     resetCode: { type: String, default: null },
     resetCodeExpiresAt: { type: Date, default: null },
     lastOtpSentAt: { type: Date, default: null },
+    shortId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+      minlength: 8,
+      maxlength: 8,
+      match: [/^[A-Za-z0-9]{8}$/, 'Short ID must be exactly 8 alphanumeric characters'],
+    },
     isDeleted: { type: Boolean, default: false },
   },
-  { timestamps: true }
 );
 
 donorSchema.index({ location: '2dsphere' });
