@@ -40,6 +40,7 @@ const donorSchema = new mongoose.Schema(
       maxlength: 8,
       match: [/^[A-Za-z0-9]{8}$/, 'Short ID must be exactly 8 alphanumeric characters'],
     },
+    lastDonatedAt: { type: Date, default: null },
     isDeleted: { type: Boolean, default: false },
   },
 );
