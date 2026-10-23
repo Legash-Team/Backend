@@ -9,7 +9,7 @@ exports.listAcceptedDonors = async (req, res, next) => {
   try {
     const closedRequests = await BloodRequest.find({
       hospital: req.user.id,
-      status: 'closed',
+      status: 'closed'
     }).select('_id');
 
     const closedRequestIds = closedRequests.map((r) => r._id);
@@ -17,12 +17,12 @@ exports.listAcceptedDonors = async (req, res, next) => {
     // Find accepted responses on closed requests
     const acceptedResponses = await BloodRequestResponse.find({
       bloodRequest: { $in: closedRequestIds },
-      status: 'accepted',
+      status: 'accepted'
     }).populate('donor', 'name phone bloodType shortId');
 
     // Exclude responses that already have a donation record
     const existingRecords = await DonationRecord.find({
-      bloodRequestResponse: { $in: acceptedResponses.map((r) => r._id) },
+      bloodRequestResponse: { $in: acceptedResponses.map((r) => r._id) }
     }).select('bloodRequestResponse');
 
     const recordedResponseIds = new Set(
@@ -35,7 +35,7 @@ exports.listAcceptedDonors = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      data: pendingRecordResponses,
+      data: pendingRecordResponses
     });
   } catch (error) {
     next(error);
@@ -54,7 +54,7 @@ exports.createRecord = async (req, res, next) => {
       pulse,
       hemoglobin,
       healthIssues,
-      thankYouMessage,
+      thankYouMessage
     } = req.body;
 
     if (!['donated', 'did_not_donate'].includes(outcome)) {
@@ -62,7 +62,9 @@ exports.createRecord = async (req, res, next) => {
     }
 
     if (!donationDate || new Date(donationDate) > new Date()) {
-      return res.status(400).json({ success: false, error: 'Donation date cannot be in the future.' });
+      return res
+        .status(400)
+        .json({ success: false, error: 'Donation date cannot be in the future.' });
     }
 
     const request = await BloodRequest.findById(bloodRequestId);
@@ -71,7 +73,9 @@ exports.createRecord = async (req, res, next) => {
     }
 
     if (request.status !== 'closed') {
-      return res.status(400).json({ success: false, error: 'Cannot record outcome on an open request.' });
+      return res
+        .status(400)
+        .json({ success: false, error: 'Cannot record outcome on an open request.' });
     }
 
     const response = await BloodRequestResponse.findById(bloodRequestResponseId);
@@ -86,7 +90,9 @@ exports.createRecord = async (req, res, next) => {
     // Check duplicate record (409 Conflict)
     const exists = await DonationRecord.findOne({ bloodRequestResponse: bloodRequestResponseId });
     if (exists) {
-      return res.status(409).json({ success: false, error: 'Record already exists for this donor response.' });
+      return res
+        .status(409)
+        .json({ success: false, error: 'Record already exists for this donor response.' });
     }
 
     const recordPayload = {
@@ -96,12 +102,14 @@ exports.createRecord = async (req, res, next) => {
       hospital: req.user.id,
       outcome,
       donationDate: new Date(donationDate),
-      requestBloodType: request.bloodType, // Injected from DB, not client
+      requestBloodType: request.bloodType // Injected from DB, not client
     };
 
     if (outcome === 'donated') {
       if (!donorBloodType || !VALID_BLOOD_TYPES.includes(donorBloodType)) {
-        return res.status(400).json({ success: false, error: 'Valid donorBloodType is required for donations.' });
+        return res
+          .status(400)
+          .json({ success: false, error: 'Valid donorBloodType is required for donations.' });
       }
       recordPayload.donorBloodType = donorBloodType;
       recordPayload.pulse = pulse ? Number(pulse) : null;
@@ -116,14 +124,14 @@ exports.createRecord = async (req, res, next) => {
     // Feature B3 integration hook: Update lastDonatedAt only on 'donated'
     if (outcome === 'donated') {
       await Donor.findByIdAndUpdate(response.donor, {
-        lastDonatedAt: new Date(donationDate),
+        lastDonatedAt: new Date(donationDate)
       });
     }
 
     return res.status(201).json({
       success: true,
       message: 'Donation record created successfully.',
-      record,
+      record
     });
   } catch (error) {
     if (error.code === 11000) {
@@ -150,8 +158,8 @@ exports.getMyDonationHistory = async (req, res, next) => {
         requestBloodType: rec.requestBloodType,
         donorBloodType: rec.donorBloodType,
         hospitalName: rec.hospital?.hospitalName || 'Hospital',
-        thankYouMessage: rec.thankYouMessage,
-      })),
+        thankYouMessage: rec.thankYouMessage
+      }))
     });
   } catch (error) {
     next(error);
