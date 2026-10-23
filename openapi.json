@@ -479,6 +479,107 @@
         }
       }
     },
+    "/api/hospital/blood-center-requests": {
+      "post": {
+        "tags": ["Blood Stock & Requests"],
+        "summary": "Create request to nearby Blood Centers (Feature C2)",
+        "description": "Matches eligible Blood Centers within DEFAULT_SEARCH_RADIUS_KM (15 km) and initializes pending responses.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateBloodCenterRequestInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Blood Center request created and matching centers populated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CreateBloodCenterRequestResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" },
+          "401": { "$ref": "#/components/responses/401Unauthorized" },
+          "403": { "$ref": "#/components/responses/403Forbidden" },
+          "404": { "$ref": "#/components/responses/404NotFound" }
+        }
+      },
+      "get": {
+        "tags": ["Blood Stock & Requests"],
+        "summary": "List hospital's blood center requests with response counts",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "status", "in": "query", "required": false, "schema": { "type": "string", "enum": ["open", "closed"] } },
+          { "name": "page", "in": "query", "required": false, "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "default": 20 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of blood center requests belonging to the authenticated hospital",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BloodCenterRequestListResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/401Unauthorized" },
+          "403": { "$ref": "#/components/responses/403Forbidden" }
+        }
+      }
+    },
+    "/api/hospital/blood-center-requests/{requestId}/accepted-centers": {
+      "get": {
+        "tags": ["Blood Stock & Requests"],
+        "summary": "Get contact details of accepted Blood Centers",
+        "description": "Returns contact details only for centers that have accepted this request.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "requestId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Contact details of accepted blood centers",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AcceptedBloodCentersResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" },
+          "401": { "$ref": "#/components/responses/401Unauthorized" },
+          "403": { "$ref": "#/components/responses/403Forbidden" },
+          "404": { "$ref": "#/components/responses/404NotFound" }
+        }
+      }
+    },
+    "/api/hospital/blood-center-requests/{requestId}/close": {
+      "patch": {
+        "tags": ["Blood Stock & Requests"],
+        "summary": "Manually close a blood center request",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "requestId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request closed successfully or already closed",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardSuccessMessage" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" },
+          "401": { "$ref": "#/components/responses/401Unauthorized" },
+          "403": { "$ref": "#/components/responses/403Forbidden" },
+          "404": { "$ref": "#/components/responses/404NotFound" }
+        }
+      }
+    },
     "/api/donor/register": {
       "post": {
         "tags": ["Donor Auth & Profile"],
@@ -1222,6 +1323,60 @@
         }
       }
     },
+    "/api/admin/blood-center-requests": {
+      "get": {
+        "tags": ["Super Admin & Admin RBAC"],
+        "summary": "List incoming requests assigned to the Blood Center",
+        "description": "Returns open, non-expired blood center requests matching this center with the center's response status.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of incoming requests for this blood center",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BloodCenterIncomingRequestsResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/401Unauthorized" },
+          "403": { "$ref": "#/components/responses/403Forbidden" }
+        }
+      }
+    },
+    "/api/admin/blood-center-requests/{requestId}/respond": {
+      "patch": {
+        "tags": ["Super Admin & Admin RBAC"],
+        "summary": "Blood Center accepts or denies an assigned request",
+        "description": "Transitions response from pending to accepted or denied. Rejects repeated or concurrent updates.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "requestId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RespondBloodCenterRequestInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Response successfully recorded",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BloodCenterResponseSuccess" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" },
+          "401": { "$ref": "#/components/responses/401Unauthorized" },
+          "403": { "$ref": "#/components/responses/403Forbidden" },
+          "404": { "$ref": "#/components/responses/404NotFound" },
+          "409": { "$ref": "#/components/responses/409Conflict" }
+        }
+      }
+    },
     "/api/auth/login": {
       "post": {
         "tags": ["Shared Auth"],
@@ -1923,6 +2078,83 @@
               "email": { "type": "string" }
             }
           }
+        }
+      },
+      "CreateBloodCenterRequestInput": {
+        "type": "object",
+        "required": ["bloodType", "quantityNeeded", "closesAt"],
+        "properties": {
+          "bloodType": { "type": "string", "enum": ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"], "example": "A+" },
+          "quantityNeeded": { "type": "integer", "minimum": 1, "example": 5 },
+          "closesAt": { "type": "string", "format": "date-time", "example": "2026-10-30T10:00:00.000Z" },
+          "note": { "type": "string", "maxLength": 500, "example": "Urgent need for surgery" }
+        }
+      },
+      "CreateBloodCenterRequestResponse": {
+        "type": "object",
+        "required": ["success", "message", "request", "matchedCenterCount"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Blood center request created successfully." },
+          "request": { "type": "object" },
+          "matchedCenterCount": { "type": "integer", "example": 3 }
+        }
+      },
+      "BloodCenterRequestListResponse": {
+        "type": "object",
+        "required": ["success", "totalCount", "requests"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "totalCount": { "type": "integer", "example": 10 },
+          "page": { "type": "integer", "example": 1 },
+          "limit": { "type": "integer", "example": 20 },
+          "requests": { "type": "array", "items": { "type": "object" } }
+        }
+      },
+      "AcceptedBloodCentersResponse": {
+        "type": "object",
+        "required": ["success", "requestId", "acceptedCenters"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "requestId": { "type": "string" },
+          "acceptedCenters": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "centerName": { "type": "string" },
+                "phone": { "type": "string" },
+                "email": { "type": "string" },
+                "address": { "type": "string", "nullable": true },
+                "respondedAt": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "BloodCenterIncomingRequestsResponse": {
+        "type": "object",
+        "required": ["success", "requests"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "requests": { "type": "array", "items": { "type": "object" } }
+        }
+      },
+      "RespondBloodCenterRequestInput": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": { "type": "string", "enum": ["accepted", "denied"], "example": "accepted" }
+        }
+      },
+      "BloodCenterResponseSuccess": {
+        "type": "object",
+        "required": ["success", "message", "response"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Request successfully accepted." },
+          "response": { "type": "object" }
         }
       }
     },
