@@ -47,6 +47,7 @@ describe('Feature C2 — Hospital-to-Blood-Center Requests', () => {
     await BloodCenterRequest.deleteMany({});
     await Hospital.deleteMany({});
     await Admin.deleteMany({});
+    await Admin.createIndexes();
 
     const passwordHash = await hashPassword('SecurePass123!');
 
