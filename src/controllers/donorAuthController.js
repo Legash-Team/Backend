@@ -5,7 +5,7 @@ const { hashPassword, comparePassword } = require('../utils/hashPassword');
 const { sendOtp, verifyOtp } = require('../services/smsService');
 const generateToken = require('../utils/generateToken');
 const generateResetCode = require('../utils/generateResetCode');
-
+const { generateUniqueDonorShortId } = require('../utils/generateShortId'); 
 const RESEND_COOLDOWN_SECONDS = 60;
 
 exports.registerDonor = async (req, res, next) => {
@@ -63,6 +63,7 @@ exports.registerDonor = async (req, res, next) => {
     }
 
     const { code, expiresAt } = generateResetCode();
+    const shortId = await generateUniqueDonorShortId();
 
     const donor = await Donor.create({
       name: (name || '').trim(),
@@ -74,6 +75,7 @@ exports.registerDonor = async (req, res, next) => {
       agreedToTerms: agreedToTerms !== undefined ? agreedToTerms : true,
       phoneVerified: false,
       pinHash: null,
+      shortId, // <-- ADD THIS LINE (req.body.shortId ignored)
       resetCode: code,
       resetCodeExpiresAt: expiresAt,
       lastOtpSentAt: new Date(),

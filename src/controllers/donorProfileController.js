@@ -17,6 +17,7 @@ exports.getProfile = async (req, res, next) => {
       success: true,
       profile: {
         id: donor._id,
+        shortId: donor.shortId || null,
         name: donor.name,
         phone: donor.phone,
         fin: donor.fin,
