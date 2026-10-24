@@ -5,6 +5,7 @@ const Event = require('../models/Event');
 const Admin = require('../models/Admin');
 const Feedback = require('../models/Feedback');
 const emailService = require('../services/emailService');
+const { generateMapsUrl } = require('../utils/mapsUrl');
 
 const ADMIN_INVITE_EXPIRY_HOURS = 48;
 
@@ -17,8 +18,17 @@ exports.listPendingHospitals = async (req, res, next) => {
     }).sort({ createdAt: -1 });
 
     const formattedHospitals = hospitals.map((hospital) => {
-      const lat = hospital.location?.coordinates?.[1] ?? 0;
-      const lng = hospital.location?.coordinates?.[0] ?? 0;
+      const rawLat = hospital.location?.coordinates?.[1];
+      const rawLng = hospital.location?.coordinates?.[0];
+      const hasCoords =
+        rawLat !== undefined &&
+        rawLat !== null &&
+        rawLng !== undefined &&
+        rawLng !== null &&
+        !(rawLat === 0 && rawLng === 0);
+      const lat = hasCoords ? rawLat : null;
+      const lng = hasCoords ? rawLng : null;
+      const mapsUrl = generateMapsUrl(hospital.location || (hasCoords ? { lat, lng } : null));
 
       return {
         id: hospital._id,
@@ -26,7 +36,13 @@ exports.listPendingHospitals = async (req, res, next) => {
         email: hospital.email,
         phone: hospital.phone,
         licenseNumber: hospital.licenseNumber,
-        location: { lat, lng },
+        location: {
+          lat,
+          lng,
+          address: hospital.location?.address || '',
+          mapsUrl
+        },
+        mapsUrl,
         registeredAt: hospital.createdAt
       };
     });
@@ -185,7 +201,7 @@ exports.markFeedbackReviewed = async (req, res, next) => {
 
 exports.createEvent = async (req, res, next) => {
   try {
-    const { mediaUrl, mediaType, description, applyLink, closesAt } = req.body;
+    const { title, mediaUrl, mediaType, description, applyLink, closesAt } = req.body;
 
     if (!description || !closesAt) {
       return res.status(400).json({
@@ -194,7 +210,7 @@ exports.createEvent = async (req, res, next) => {
       });
     }
 
-    const event = await Event.create({
+    const eventPayload = {
       mediaUrl: mediaUrl || null,
       mediaType: mediaType || 'image',
       description: description.trim(),
@@ -202,7 +218,13 @@ exports.createEvent = async (req, res, next) => {
       closesAt: new Date(closesAt),
       createdBy: req.user?.id,
       creatorModel: req.user?.role === 'superadmin' ? 'SuperAdmin' : 'Admin'
-    });
+    };
+
+    if (title && typeof title === 'string' && title.trim()) {
+      eventPayload.title = title.trim();
+    }
+
+    const event = await Event.create(eventPayload);
 
     return res.status(201).json({
       success: true,
@@ -239,14 +261,6 @@ exports.createAdmin = async (req, res, next) => {
 
     const cleanEmail = email.toLowerCase().trim();
 
-    const existingAdmin = await Admin.findOne({ email: cleanEmail });
-    if (existingAdmin) {
-      return res.status(400).json({
-        success: false,
-        error: 'An Admin with this email already exists.'
-      });
-    }
-
     let parsedPermissions = {
       canApproveHospitals: false,
       canPostEvents: false
@@ -282,6 +296,47 @@ exports.createAdmin = async (req, res, next) => {
 
     const setupToken = crypto.randomBytes(32).toString('hex');
     const setupTokenExpiresAt = new Date(Date.now() + ADMIN_INVITE_EXPIRY_HOURS * 60 * 60 * 1000);
+
+    const existingAdmin = await Admin.findOne({ email: cleanEmail });
+    if (existingAdmin) {
+      if (existingAdmin.passwordHash) {
+        return res.status(400).json({
+          success: false,
+          error: 'An Admin with this email already exists.'
+        });
+      }
+
+      // Safe re-invitation for pending / expired invitations
+      const adminName =
+        name && typeof name === 'string' && name.trim()
+          ? name.trim()
+          : existingAdmin.name || cleanEmail.split('@')[0] || 'Admin';
+
+      existingAdmin.name = adminName;
+      existingAdmin.permissions = parsedPermissions;
+      existingAdmin.setupToken = setupToken;
+      existingAdmin.setupTokenExpiresAt = setupTokenExpiresAt;
+      await existingAdmin.save();
+
+      if (emailService.sendAdminSetupEmail) {
+        emailService.sendAdminSetupEmail(cleanEmail, setupToken, parsedPermissions).catch((err) => {
+          console.warn('[WARN] Background admin setup email error:', err.message);
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Admin invitation re-sent successfully.',
+        admin: {
+          id: existingAdmin._id,
+          name: existingAdmin.name,
+          email: existingAdmin.email,
+          permissions: existingAdmin.permissions,
+          emailVerified: existingAdmin.emailVerified,
+          createdAt: existingAdmin.createdAt
+        }
+      });
+    }
 
     const adminName =
       name && typeof name === 'string' && name.trim()

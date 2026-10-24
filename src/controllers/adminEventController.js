@@ -7,9 +7,10 @@ const Event = require('../models/Event');
  */
 exports.listMyEvents = async (req, res, next) => {
   try {
+    const creatorModel = req.user.role === 'superadmin' ? 'SuperAdmin' : 'Admin';
     const events = await Event.find({
       createdBy: req.user.id,
-      creatorModel: 'Admin',
+      creatorModel,
     }).sort({ createdAt: -1 });
 
     const formattedEvents = events.map((e) => ({

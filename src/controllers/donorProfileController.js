@@ -5,6 +5,7 @@ const { hashPassword, comparePassword } = require('../utils/hashPassword');
 const { sendOtp, verifyOtp } = require('../services/smsService');
 const { VALID_BLOOD_TYPES } = require('../utils/bloodCompatibility');
 const generateResetCode = require('../utils/generateResetCode');
+const { generateMapsUrl } = require('../utils/mapsUrl');
 
 exports.getProfile = async (req, res, next) => {
   try {
@@ -222,7 +223,7 @@ exports.getBloodCenters = async (req, res, next) => {
               $maxDistance: 100000, // 100 km radius
             },
           },
-        }).select('hospitalName phone email location licenseNumber');
+        }).select('hospitalName phone email location');
       } catch (_) {
         // Fall back to standard query if geospatial index query encounters issues
         centers = [];
@@ -234,24 +235,25 @@ exports.getBloodCenters = async (req, res, next) => {
         verificationStatus: 'approved',
         isDeleted: { $ne: true },
       })
-        .select('hospitalName phone email location licenseNumber')
+        .select('hospitalName phone email location')
         .limit(30);
     }
 
     const formattedCenters = centers.map((h) => {
-      const [lng, lat] =
-        Array.isArray(h.location?.coordinates) && h.location.coordinates.length === 2
-          ? h.location.coordinates
-          : [38.75, 9.03];
+      const hasCoords = Array.isArray(h.location?.coordinates) && h.location.coordinates.length === 2;
+      const lng = hasCoords ? h.location.coordinates[0] : null;
+      const lat = hasCoords ? h.location.coordinates[1] : null;
+      const mapsUrl = generateMapsUrl(h.location);
+
       return {
         id: h._id,
         name: h.hospitalName,
         phone: h.phone,
         email: h.email,
-        address: h.location?.address || 'Addis Ababa, Ethiopia',
+        address: h.location?.address || '',
         lat,
         lng,
-        licenseNumber: h.licenseNumber,
+        mapsUrl,
         status: 'Open for Donations',
       };
     });
