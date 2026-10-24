@@ -75,6 +75,8 @@ exports.updateProfile = async (req, res, next) => {
       success: true,
       message: 'Profile updated successfully.',
       profile: {
+        id: donor._id,
+        shortId: donor.shortId || null,
         name: donor.name,
         phone: donor.phone,
         fin: donor.fin,
