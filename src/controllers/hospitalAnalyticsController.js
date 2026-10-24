@@ -395,6 +395,12 @@ async function getHospitalAnalytics(req, res, next) {
           last30Days,
           last90Days
         }
+      },
+      data: {
+        nationalTotals: nationalByBloodType,
+        topHospitals,
+        bottomHospitals,
+        trends: last30Days.map((t) => ({ date: t.date, ...t.byBloodType }))
       }
     });
   } catch (error) {

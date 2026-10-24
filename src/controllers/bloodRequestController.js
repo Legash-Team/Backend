@@ -149,7 +149,7 @@ exports.getResponses = async (req, res, next) => {
 
     const responses = await BloodRequestResponse.find({ bloodRequest: request._id }).populate(
       'donor',
-      'name gender bloodType phone'
+      'name gender bloodType shortId'
     );
 
     const accepted = [];
@@ -161,10 +161,12 @@ exports.getResponses = async (req, res, next) => {
         if (response.donor) {
           accepted.push({
             id: response.donor._id,
+            donorId: response.donor.shortId || response.donor._id,
+            shortId: response.donor.shortId,
+            responseId: response._id,
             name: response.donor.name,
             gender: response.donor.gender,
             bloodType: response.donor.bloodType,
-            phone: response.donor.phone,
           });
         }
       } else if (response.status === 'denied') {

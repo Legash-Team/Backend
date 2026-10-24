@@ -251,7 +251,7 @@ async function sendAdminVerificationOtp(toEmail, otp) {
 
 async function sendAdminSetupEmail(toEmail, setupToken, permissions) {
   const frontendUrl = getFrontendBaseUrl();
-  const setupLink = frontendUrl ? `${frontendUrl}/admin/setup?token=${setupToken}` : '';
+  const setupLink = frontendUrl ? `${frontendUrl}/invite/${setupToken}` : '';
   console.log(`[AUTH] Admin Setup Invitation for ${toEmail}: ${setupLink || `(Token: ${setupToken})`}`);
 
   if (isMockMode()) {

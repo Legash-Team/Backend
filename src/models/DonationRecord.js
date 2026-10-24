@@ -58,6 +58,40 @@ const donationRecordSchema = new mongoose.Schema(
     thankYouMessage: {
       type: String,
       default: null
+    },
+    unitsCollected: {
+      type: Number,
+      default: 1
+    },
+    systolic: {
+      type: Number,
+      default: null
+    },
+    diastolic: {
+      type: Number,
+      default: null
+    },
+    temperature: {
+      type: Number,
+      default: null
+    },
+    screening: {
+      type: Object,
+      default: () => ({
+        hiv: 'pending',
+        hepatitisB: 'pending',
+        hepatitisC: 'pending',
+        syphilis: 'pending',
+        malaria: 'pending'
+      })
+    },
+    notes: {
+      type: String,
+      default: null
+    },
+    recordedBy: {
+      type: String,
+      default: null
     }
   },
   { timestamps: true }

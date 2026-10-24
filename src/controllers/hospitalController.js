@@ -4,6 +4,7 @@ const { sendVerificationEmail } = require('../services/emailService');
 const { hashPassword, comparePassword } = require('../utils/hashPassword');
 const { VALID_BLOOD_TYPES } = require('../utils/bloodCompatibility');
 const generateResetCode = require('../utils/generateResetCode');
+const { generateMapsUrl } = require('../utils/mapsUrl');
 
 function sanitizeHospital(hospital) {
   const lat = hospital.location?.coordinates?.[1] ?? null;
@@ -469,18 +470,20 @@ exports.searchHospitals = async (req, res, next) => {
     const results = hospitals.map((h) => {
       const lat = h.location?.coordinates?.[1] ?? null;
       const lng = h.location?.coordinates?.[0] ?? null;
+      const mapsUrl = generateMapsUrl(h.location);
 
       return {
         id: h._id,
         name: h.hospitalName || h.name,
         email: h.email,
         phone: h.phone,
-        licenseNumber: h.licenseNumber,
         location: {
           lat,
           lng,
           address: h.location?.address || '',
+          mapsUrl,
         },
+        mapsUrl,
         // We do NOT expose the exact availableUnits to prevent data leakage!
         // Just return that it is in stock or available.
         hasStock: true,

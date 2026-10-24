@@ -5,8 +5,10 @@ const donationRecordController = require('../../controllers/donationRecordContro
 
 const hospitalRouter = express.Router();
 hospitalRouter.use(verifyToken, requireRole('hospital'));
+hospitalRouter.get('/', donationRecordController.listHospitalRecords);
 hospitalRouter.get('/accepted', donationRecordController.listAcceptedDonors);
 hospitalRouter.post('/', donationRecordController.createRecord);
+hospitalRouter.delete('/:id', donationRecordController.deleteRecord);
 
 const donorRouter = express.Router();
 donorRouter.use(verifyToken, requireRole('donor'));
@@ -15,6 +17,7 @@ donorRouter.get('/', donationRecordController.getMyDonationHistory);
 module.exports = {
   mounts: [
     { path: '/api/hospital/donation-records', router: hospitalRouter },
+    { path: '/api/hospital/donations', router: hospitalRouter },
     { path: '/api/donor/donation-history', router: donorRouter },
   ],
 };

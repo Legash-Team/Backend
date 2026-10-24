@@ -6,6 +6,7 @@ const Hospital = require('../models/Hospital');
 const Admin = require('../models/Admin');
 const { DEFAULT_SEARCH_RADIUS_KM } = require('../utils/constants');
 const { VALID_BLOOD_TYPES } = require('../utils/bloodCompatibility');
+const { generateMapsUrl } = require('../utils/mapsUrl');
 
 /**
  * 7.1 Hospital: Create a Blood Center Request
@@ -267,18 +268,30 @@ exports.getAcceptedCenters = async (req, res, next) => {
     const acceptedResponses = await BloodCenterRequestResponse.find({
       request: request._id,
       status: 'accepted'
-    }).populate('bloodCenter', 'name centerName email phone location.address');
+    }).populate('bloodCenter', 'name centerName email phone location');
 
     const acceptedCenters = acceptedResponses
       .filter((r) => r.bloodCenter)
-      .map((r) => ({
-        id: r.bloodCenter._id,
-        centerName: r.bloodCenter.centerName || r.bloodCenter.name,
-        phone: r.bloodCenter.phone,
-        email: r.bloodCenter.email,
-        address: r.bloodCenter.location?.address || null,
-        respondedAt: r.respondedAt || r.updatedAt
-      }));
+      .map((r) => {
+        const center = r.bloodCenter;
+        const coordinates =
+          Array.isArray(center.location?.coordinates) && center.location.coordinates.length === 2
+            ? { lng: center.location.coordinates[0], lat: center.location.coordinates[1] }
+            : null;
+        const mapsUrl = generateMapsUrl(center.location);
+
+        return {
+          id: center._id,
+          centerName: center.centerName || center.name,
+          phone: center.phone,
+          email: center.email,
+          address: center.location?.address || null,
+          location: center.location,
+          coordinates,
+          mapsUrl,
+          respondedAt: r.respondedAt || r.updatedAt
+        };
+      });
 
     return res.status(200).json({
       success: true,
