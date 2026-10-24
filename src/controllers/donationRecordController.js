@@ -253,20 +253,42 @@ exports.getMyDonationHistory = async (req, res, next) => {
   try {
     const records = await DonationRecord.find({ donor: req.user.id })
       .sort({ donationDate: -1 })
-      .populate('hospital', 'hospitalName')
+      .populate('hospital', 'hospitalName location')
       .select('-__v');
+
+    const mapped = records.map((rec) => {
+      const units = rec.unitsCollected || 1;
+      const quantityMl = units * 450;
+      const bloodType = rec.donorBloodType || rec.requestBloodType || 'Unknown';
+      const status = rec.outcome === 'donated' ? 'completed' : 'cancelled';
+      const hospitalName = rec.hospital?.hospitalName || 'Blood Center';
+      const centerAddress = rec.hospital?.location?.address || '';
+
+      return {
+        id: rec._id,
+        _id: rec._id,
+        outcome: rec.outcome,
+        status,
+        donationDate: rec.donationDate,
+        donatedAt: rec.donationDate,
+        requestBloodType: rec.requestBloodType,
+        donorBloodType: rec.donorBloodType,
+        bloodType,
+        unitsCollected: units,
+        quantity: quantityMl,
+        quantityMl,
+        hospitalName,
+        centerName: hospitalName,
+        centerAddress,
+        thankYouMessage: rec.thankYouMessage,
+        note: rec.thankYouMessage || rec.notes || null,
+      };
+    });
 
     return res.status(200).json({
       success: true,
-      records: records.map((rec) => ({
-        id: rec._id,
-        outcome: rec.outcome,
-        donationDate: rec.donationDate,
-        requestBloodType: rec.requestBloodType,
-        donorBloodType: rec.donorBloodType,
-        hospitalName: rec.hospital?.hospitalName || 'Hospital',
-        thankYouMessage: rec.thankYouMessage
-      }))
+      records: mapped,
+      donations: mapped,
     });
   } catch (error) {
     next(error);
