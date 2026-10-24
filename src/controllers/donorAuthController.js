@@ -180,6 +180,9 @@ exports.setDonorPin = async (req, res, next) => {
 
     donor.pinHash = await hashPassword(pin);
     donor.pinSetAt = new Date();
+    if (!donor.shortId) {
+      donor.shortId = await generateUniqueDonorShortId();
+    }
     await donor.save();
 
     const token = generateToken({ id: donor._id.toString(), role: 'donor' });
@@ -189,6 +192,7 @@ exports.setDonorPin = async (req, res, next) => {
       token,
       donor: {
         id: donor._id.toString(),
+        shortId: donor.shortId || null,
         name: donor.name,
         phone: donor.phone,
         bloodType: donor.bloodType,
@@ -243,6 +247,11 @@ exports.unlockDonor = async (req, res, next) => {
       return res.status(401).json({ success: false, error: 'Invalid PIN.' });
     }
 
+    if (!donor.shortId) {
+      donor.shortId = await generateUniqueDonorShortId();
+      await donor.save();
+    }
+
     const freshToken = generateToken({ id: donor._id.toString(), role: 'donor' });
 
     return res.status(200).json({
@@ -250,6 +259,7 @@ exports.unlockDonor = async (req, res, next) => {
       token: freshToken,
       donor: {
         id: donor._id.toString(),
+        shortId: donor.shortId || null,
         name: donor.name,
         phone: donor.phone,
         bloodType: donor.bloodType,
