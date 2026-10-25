@@ -6,11 +6,10 @@ const adminEventController = require('../../controllers/adminEventController');
 
 const router = express.Router();
 
-router.get('/mine', verifyToken, requireRole(['admin', 'superadmin']), adminEventController.listMyEvents);
+router.get('/mine', verifyToken, requireRole('admin'), adminEventController.listMyEvents);
 
 module.exports = {
   mounts: [
     { path: '/api/admin/events', router },
-    { path: '/api/superadmin/events', router },
   ],
 };

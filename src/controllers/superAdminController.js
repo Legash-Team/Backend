@@ -38,9 +38,7 @@ exports.listPendingHospitals = async (req, res, next) => {
         licenseNumber: hospital.licenseNumber,
         location: {
           lat,
-          lng,
-          address: hospital.location?.address || '',
-          mapsUrl
+          lng
         },
         mapsUrl,
         registeredAt: hospital.createdAt
@@ -299,14 +297,18 @@ exports.createAdmin = async (req, res, next) => {
 
     const existingAdmin = await Admin.findOne({ email: cleanEmail });
     if (existingAdmin) {
-      if (existingAdmin.passwordHash) {
+      const isPendingInvite = Boolean(existingAdmin.setupToken);
+      const isExpired = existingAdmin.setupTokenExpiresAt && existingAdmin.setupTokenExpiresAt <= new Date();
+      const allowReissue = req.body.reissue === true;
+
+      if (!isPendingInvite || (!isExpired && !allowReissue) || existingAdmin.passwordHash) {
         return res.status(400).json({
           success: false,
           error: 'An Admin with this email already exists.'
         });
       }
 
-      // Safe re-invitation for pending / expired invitations
+      // Safe re-invitation for pending expired invitations or authorized reissue
       const adminName =
         name && typeof name === 'string' && name.trim()
           ? name.trim()
