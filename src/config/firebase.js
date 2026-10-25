@@ -61,7 +61,7 @@ function initFirebase() {
       });
     } else if (typeof admin.initializeApp === 'function') {
       admin.initializeApp({
-        credential: cert ? cert(serviceAccount) : (admin.credential && admin.credential.cert ? admin.credential.cert(serviceAccount) : serviceAccount),
+        credential: cert ? cert(serviceAccount) : serviceAccount,
       });
     }
     if (process.env.NODE_ENV !== 'test') {

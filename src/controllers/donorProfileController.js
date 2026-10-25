@@ -6,12 +6,18 @@ const { sendOtp, verifyOtp } = require('../services/smsService');
 const { VALID_BLOOD_TYPES } = require('../utils/bloodCompatibility');
 const generateResetCode = require('../utils/generateResetCode');
 const { generateMapsUrl } = require('../utils/mapsUrl');
+const { generateUniqueDonorShortId } = require('../utils/generateShortId');
 
 exports.getProfile = async (req, res, next) => {
   try {
     const donor = await Donor.findById(req.user.id);
     if (!donor || donor.isDeleted) {
       return res.status(404).json({ success: false, error: 'Donor not found.' });
+    }
+
+    if (!donor.shortId) {
+      donor.shortId = await generateUniqueDonorShortId();
+      await donor.save();
     }
 
     return res.status(200).json({
@@ -69,6 +75,8 @@ exports.updateProfile = async (req, res, next) => {
       success: true,
       message: 'Profile updated successfully.',
       profile: {
+        id: donor._id,
+        shortId: donor.shortId || null,
         name: donor.name,
         phone: donor.phone,
         fin: donor.fin,
