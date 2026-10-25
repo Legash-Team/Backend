@@ -25,15 +25,36 @@ function getFrontendBaseUrl() {
 }
 
 function parseSender(fromStr) {
+  if (!fromStr || typeof fromStr !== 'string') {
+    return { name: 'Legash Blood Network', email: 'noreply@legash.org' };
+  }
   const match = fromStr.match(/^(.*?)\s*<(.+?)>$/);
   if (match) {
-    return { name: match[1].trim(), email: match[2].trim() };
+    return { name: match[1].trim() || 'Legash Blood Network', email: match[2].trim() };
   }
   return { name: 'Legash Blood Network', email: fromStr.trim() };
 }
 
 function getFromEmail() {
   return process.env.EMAIL_FROM ? process.env.EMAIL_FROM.trim() : 'Legash Blood Network <noreply@legash.org>';
+}
+
+async function executeSendTransacEmail(brevo, emailPayload) {
+  try {
+    return await brevo.transactionalEmails.sendTransacEmail(emailPayload);
+  } catch (err) {
+    const errMsg = (err && (err.message || (typeof err === 'string' ? err : ''))) || '';
+    if (
+      errMsg.includes('sender') ||
+      errMsg.includes('authenticate your domain') ||
+      errMsg.includes('not valid')
+    ) {
+      console.error(
+        `[EMAIL ERROR] Brevo rejected sender "${emailPayload.sender?.email}". Ensure EMAIL_FROM in your environment matches an active verified sender or authenticated domain in your Brevo account (https://app.brevo.com/senders).`
+      );
+    }
+    throw err;
+  }
 }
 
 function isMockMode() {
@@ -72,7 +93,7 @@ async function sendVerificationEmail(toEmail, code) {
 
   try {
     const brevo = getBrevoClient();
-    const response = await brevo.transactionalEmails.sendTransacEmail({
+    const response = await executeSendTransacEmail(brevo, {
       sender: parseSender(getFromEmail()),
       to: [{ email: toEmail }],
       subject: 'Your Legash Hospital Verification Code',
@@ -110,7 +131,7 @@ async function sendPasswordResetEmail(toEmail, resetCode) {
 
   try {
     const brevo = getBrevoClient();
-    const response = await brevo.transactionalEmails.sendTransacEmail({
+    const response = await executeSendTransacEmail(brevo, {
       sender: parseSender(getFromEmail()),
       to: [{ email: toEmail }],
       subject: 'Your Legash Password Reset Code',
@@ -149,7 +170,7 @@ async function sendApprovalEmail(toEmail) {
 
   try {
     const brevo = getBrevoClient();
-    const response = await brevo.transactionalEmails.sendTransacEmail({
+    const response = await executeSendTransacEmail(brevo, {
       sender: parseSender(getFromEmail()),
       to: [{ email: toEmail }],
       subject: 'Legash Hospital Account Approved',
@@ -191,7 +212,7 @@ async function sendRejectionEmail(toEmail, reason) {
 
   try {
     const brevo = getBrevoClient();
-    const response = await brevo.transactionalEmails.sendTransacEmail({
+    const response = await executeSendTransacEmail(brevo, {
       sender: parseSender(getFromEmail()),
       to: [{ email: toEmail }],
       subject: 'Legash Hospital Registration Update',
@@ -224,7 +245,7 @@ async function sendAdminVerificationOtp(toEmail, otp) {
 
   try {
     const brevo = getBrevoClient();
-    const response = await brevo.transactionalEmails.sendTransacEmail({
+    const response = await executeSendTransacEmail(brevo, {
       sender: parseSender(getFromEmail()),
       to: [{ email: toEmail }],
       subject: 'Your Legash Admin Verification Code',
@@ -268,7 +289,7 @@ async function sendAdminSetupEmail(toEmail, setupToken, permissions) {
 
   try {
     const brevo = getBrevoClient();
-    const response = await brevo.transactionalEmails.sendTransacEmail({
+    const response = await executeSendTransacEmail(brevo, {
       sender: parseSender(getFromEmail()),
       to: [{ email: toEmail }],
       subject: 'Invitation to Join Legash Admin Portal',
