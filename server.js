@@ -165,7 +165,7 @@ const PORT = process.env.PORT || 3000;
 
 if (process.env.NODE_ENV !== 'test') {
   connectDB().then(() => {
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0',() => {
       console.log(`Legash API running on port ${PORT}`);
       console.log(`Swagger Docs: http://localhost:${PORT}/api-docs`);
     });
