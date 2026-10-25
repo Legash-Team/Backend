@@ -4,6 +4,87 @@ const BloodRequestResponse = require('../models/BloodRequestResponse');
 const Donor = require('../models/Donor');
 const { VALID_BLOOD_TYPES } = require('../utils/bloodCompatibility');
 
+// GET /api/hospital/donation-records/pending/count
+exports.getPendingDonationCount = async (req, res, next) => {
+  try {
+    const closedRequests = await BloodRequest.find({
+      hospital: req.user.id,
+      status: 'closed'
+    }).select('_id');
+
+    const closedRequestIds = closedRequests.map((r) => r._id);
+
+    const acceptedResponses = await BloodRequestResponse.find({
+      bloodRequest: { $in: closedRequestIds },
+      status: 'accepted'
+    }).select('_id');
+
+    const existingRecords = await DonationRecord.find({
+      bloodRequestResponse: { $in: acceptedResponses.map((r) => r._id) }
+    }).select('bloodRequestResponse');
+
+    const recordedResponseIds = new Set(
+      existingRecords.map((rec) => rec.bloodRequestResponse.toString())
+    );
+
+    const pendingCount = acceptedResponses.filter(
+      (r) => !recordedResponseIds.has(r._id.toString())
+    ).length;
+
+    return res.status(200).json({
+      success: true,
+      count: pendingCount
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/hospital/donation-records/pending
+exports.listPendingQueue = async (req, res, next) => {
+  try {
+    const closedRequests = await BloodRequest.find({
+      hospital: req.user.id,
+      status: 'closed'
+    }).select('_id');
+
+    const closedRequestIds = closedRequests.map((r) => r._id);
+
+    const acceptedResponses = await BloodRequestResponse.find({
+      bloodRequest: { $in: closedRequestIds },
+      status: 'accepted'
+    }).populate('donor', 'name phone bloodType shortId')
+      .populate('bloodRequest', 'bloodType requestType')
+      .sort({ createdAt: 1 });
+
+    const existingRecords = await DonationRecord.find({
+      bloodRequestResponse: { $in: acceptedResponses.map((r) => r._id) }
+    }).select('bloodRequestResponse');
+
+    const recordedResponseIds = new Set(
+      existingRecords.map((rec) => rec.bloodRequestResponse.toString())
+    );
+
+    const pending = acceptedResponses.filter(
+      (r) => !recordedResponseIds.has(r._id.toString())
+    );
+
+    const queue = pending.map((r) => ({
+      id: r._id.toString(),
+      shortId: r.donor?.shortId || r.donor?._id?.toString() || 'DONOR',
+      name: r.donor?.name || 'Anonymous Donor',
+      acceptedRequest: r.bloodRequest?.bloodType ? `${r.bloodRequest.bloodType} Request` : 'Blood Request',
+      bloodRequestId: r.bloodRequest?._id?.toString() || r.bloodRequest?.toString(),
+      bloodRequestResponseId: r._id.toString(),
+      responseId: r._id.toString()
+    }));
+
+    return res.status(200).json(queue);
+  } catch (error) {
+    next(error);
+  }
+};
+
 // GET /api/hospital/donation-records/accepted
 exports.listAcceptedDonors = async (req, res, next) => {
   try {
@@ -135,7 +216,11 @@ exports.createRecord = async (req, res, next) => {
       temperature: rawTemp,
       screening,
       vitals,
-      recordedBy
+      recordedBy,
+      healthStatus,
+      heightCm,
+      weightKg,
+      peopleSaved
     } = req.body;
 
     const bloodRequestId = bloodRequestIdParam(rawReqId, requestId);
@@ -215,6 +300,16 @@ exports.createRecord = async (req, res, next) => {
       recordPayload.temperature = rawTemp ?? vitals?.temperature ?? null;
       recordPayload.healthIssues = healthIssues || notes || null;
       recordPayload.thankYouMessage = thankYouMessage || null;
+
+      if (healthStatus || heightCm || weightKg || peopleSaved) {
+        const extraNotes = [
+          healthStatus ? `Health: ${healthStatus}` : null,
+          heightCm ? `Height: ${heightCm}cm` : null,
+          weightKg ? `Weight: ${weightKg}kg` : null,
+          peopleSaved ? `People saved: ${peopleSaved}` : null,
+        ].filter(Boolean).join('; ');
+        recordPayload.notes = recordPayload.notes ? `${recordPayload.notes} | ${extraNotes}` : extraNotes;
+      }
     }
     // If did_not_donate: clinical donation fields are omitted
 
@@ -253,20 +348,42 @@ exports.getMyDonationHistory = async (req, res, next) => {
   try {
     const records = await DonationRecord.find({ donor: req.user.id })
       .sort({ donationDate: -1 })
-      .populate('hospital', 'hospitalName')
+      .populate('hospital', 'hospitalName location')
       .select('-__v');
+
+    const mapped = records.map((rec) => {
+      const units = rec.unitsCollected || 1;
+      const quantityMl = units * 450;
+      const bloodType = rec.donorBloodType || rec.requestBloodType || 'Unknown';
+      const status = rec.outcome === 'donated' ? 'completed' : 'cancelled';
+      const hospitalName = rec.hospital?.hospitalName || 'Blood Center';
+      const centerAddress = rec.hospital?.location?.address || '';
+
+      return {
+        id: rec._id,
+        _id: rec._id,
+        outcome: rec.outcome,
+        status,
+        donationDate: rec.donationDate,
+        donatedAt: rec.donationDate,
+        requestBloodType: rec.requestBloodType,
+        donorBloodType: rec.donorBloodType,
+        bloodType,
+        unitsCollected: units,
+        quantity: quantityMl,
+        quantityMl,
+        hospitalName,
+        centerName: hospitalName,
+        centerAddress,
+        thankYouMessage: rec.thankYouMessage,
+        note: rec.thankYouMessage || rec.notes || null,
+      };
+    });
 
     return res.status(200).json({
       success: true,
-      records: records.map((rec) => ({
-        id: rec._id,
-        outcome: rec.outcome,
-        donationDate: rec.donationDate,
-        requestBloodType: rec.requestBloodType,
-        donorBloodType: rec.donorBloodType,
-        hospitalName: rec.hospital?.hospitalName || 'Hospital',
-        thankYouMessage: rec.thankYouMessage
-      }))
+      records: mapped,
+      donations: mapped,
     });
   } catch (error) {
     next(error);

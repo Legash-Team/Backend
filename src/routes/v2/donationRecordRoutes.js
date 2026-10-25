@@ -5,6 +5,8 @@ const donationRecordController = require('../../controllers/donationRecordContro
 
 const hospitalRouter = express.Router();
 hospitalRouter.use(verifyToken, requireRole('hospital'));
+hospitalRouter.get('/pending/count', donationRecordController.getPendingDonationCount);
+hospitalRouter.get('/pending', donationRecordController.listPendingQueue);
 hospitalRouter.get('/', donationRecordController.listHospitalRecords);
 hospitalRouter.get('/accepted', donationRecordController.listAcceptedDonors);
 hospitalRouter.post('/', donationRecordController.createRecord);
