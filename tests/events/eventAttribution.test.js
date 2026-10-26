@@ -197,12 +197,14 @@ describe('Event Attribution & Admin Event List API', () => {
       expect(res.status).toBe(403);
     });
 
-    it('rejects Super Admin with 403 Forbidden (mine is scoped to Admin role)', async () => {
+    it('allows Super Admin to access /mine with 200 OK', async () => {
       const res = await request(app)
         .get('/api/admin/events/mine')
         .set('Authorization', `Bearer ${superAdminToken}`);
 
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.events)).toBe(true);
     });
 
     it('rejects unauthenticated request with 401 Unauthorized', async () => {

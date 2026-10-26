@@ -381,10 +381,16 @@ exports.listIncomingRequests = async (req, res, next) => {
       });
     }
 
-    // Find all responses for this center
+    // Find all responses for this center, populating request and sender hospital
     const responses = await BloodCenterRequestResponse.find({
       bloodCenter: center._id
-    }).populate('request');
+    }).populate({
+      path: 'request',
+      populate: {
+        path: 'hospital',
+        select: 'hospitalName email phone location'
+      }
+    });
 
     const now = new Date();
     const incoming = [];
@@ -403,6 +409,7 @@ exports.listIncomingRequests = async (req, res, next) => {
 
       // Center only lists open and non-expired requests
       if (reqDoc.status === 'open' && new Date(reqDoc.closesAt) > now) {
+        const hosp = reqDoc.hospital;
         incoming.push({
           requestId: reqDoc._id,
           bloodType: reqDoc.bloodType,
@@ -411,7 +418,16 @@ exports.listIncomingRequests = async (req, res, next) => {
           createdAt: reqDoc.createdAt,
           closesAt: reqDoc.closesAt,
           responseStatus: r.status,
-          respondedAt: r.respondedAt
+          respondedAt: r.respondedAt,
+          hospital: hosp
+            ? {
+                id: hosp._id,
+                hospitalName: hosp.hospitalName,
+                email: hosp.email,
+                phone: hosp.phone,
+                location: hosp.location
+              }
+            : null
         });
       }
     }

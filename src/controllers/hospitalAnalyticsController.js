@@ -1,5 +1,9 @@
 const Hospital = require('../models/Hospital');
 const HospitalStockSnapshot = require('../models/HospitalStockSnapshot');
+const BloodRequest = require('../models/BloodRequest');
+const BloodCenterRequest = require('../models/BloodCenterRequest');
+const BloodRequestResponse = require('../models/BloodRequestResponse');
+const BloodCenterRequestResponse = require('../models/BloodCenterRequestResponse');
 const { VALID_BLOOD_TYPES } = require('../utils/bloodCompatibility');
 const {
   parseBloodTypeQuery,
@@ -336,9 +340,23 @@ async function getHospitalAnalytics(req, res, next) {
       }
     ];
 
-    const [liveResult, trendsRaw] = await Promise.all([
+    const [liveResult, trendsRaw, needResult] = await Promise.all([
       Hospital.aggregate(livePipeline).collation({ locale: 'en', strength: 2 }),
-      HospitalStockSnapshot.aggregate(trendsPipeline)
+      HospitalStockSnapshot.aggregate(trendsPipeline),
+      BloodRequest.aggregate([
+        {
+          $match: {
+            status: 'open',
+            closesAt: { $gt: now }
+          }
+        },
+        {
+          $group: {
+            _id: '$bloodType',
+            totalNeed: { $sum: '$quantityNeeded' }
+          }
+        }
+      ])
     ]);
 
     const liveFacet = liveResult[0] || {};
@@ -350,6 +368,165 @@ async function getHospitalAnalytics(req, res, next) {
     for (const bt of VALID_BLOOD_TYPES) {
       nationalByBloodType[bt] = summary?.[bt] || 0;
     }
+
+    const nationalNeedByBloodType = {};
+    for (const bt of VALID_BLOOD_TYPES) {
+      nationalNeedByBloodType[bt] = 0;
+    }
+    for (const item of needResult) {
+      if (item._id && nationalNeedByBloodType[item._id] !== undefined) {
+        nationalNeedByBloodType[item._id] = item.totalNeed;
+      }
+    }
+
+    const needVsSupply = VALID_BLOOD_TYPES.map((bt) => ({
+      bloodType: bt,
+      need: nationalNeedByBloodType[bt] || 0,
+      supply: nationalByBloodType[bt] || 0
+    }));
+
+    // Weekly Demand & Supply Aggregation (past 8 weeks ending with current week)
+    const weeks = [];
+    const d = new Date(now);
+    const day = d.getDay();
+    const diffToMon = d.getDate() - day + (day === 0 ? -6 : 1);
+    const currentMonday = new Date(d.setDate(diffToMon));
+    currentMonday.setHours(0, 0, 0, 0);
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    for (let i = 7; i >= 0; i--) {
+      const start = new Date(currentMonday.getTime() - i * 7 * 24 * 60 * 60 * 1000);
+      const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
+      const label = `${monthNames[start.getMonth()]} ${String(start.getDate()).padStart(2, '0')}`;
+      weeks.push({
+        start,
+        end,
+        weekLabel: label,
+        startDate: start.toISOString().slice(0, 10),
+        endDate: end.toISOString().slice(0, 10)
+      });
+    }
+
+    const earliestWeek = weeks[0].start;
+    const latestWeek = weeks[weeks.length - 1].end;
+
+    const [donorReqs, centerReqs, snapshotsInRange, approvedHospitals, acceptedDonorResponses, acceptedCenterResponses] = await Promise.all([
+      BloodRequest.find({ createdAt: { $gte: earliestWeek, $lte: latestWeek } }).lean(),
+      BloodCenterRequest.find({ createdAt: { $gte: earliestWeek, $lte: latestWeek } }).lean(),
+      HospitalStockSnapshot.find({ recordedAt: { $gte: earliestWeek, $lte: latestWeek } }).lean(),
+      Hospital.find({ verificationStatus: 'approved', isDeleted: { $ne: true } }).lean(),
+      BloodRequestResponse.find({ status: 'accepted' }).populate('bloodRequest').lean(),
+      BloodCenterRequestResponse.find({ status: 'accepted' }).populate('request').lean()
+    ]);
+
+    const weeklyNeedVsSupply = weeks.map((w, index) => {
+      const isCurrentWeek = index === weeks.length - 1;
+      const wDonor = donorReqs.filter((r) => r.createdAt >= w.start && r.createdAt <= w.end);
+      const wCenter = centerReqs.filter((r) => r.createdAt >= w.start && r.createdAt <= w.end);
+      const wSnaps = snapshotsInRange.filter((s) => s.recordedAt >= w.start && s.recordedAt <= w.end);
+
+      // Filter accepted responses for this week
+      const wDonorResponses = acceptedDonorResponses.filter((r) => {
+        const d = r.respondedAt || r.createdAt;
+        return d >= w.start && d <= w.end;
+      });
+
+      // Group accepted donor responses by request to cap at quantityNeeded and prevent duplicate counts
+      const donorFulfilledByReq = {};
+      wDonorResponses.forEach((r) => {
+        if (!r.bloodRequest) return;
+        const reqId = r.bloodRequest._id.toString();
+        const bType = r.bloodRequest.bloodType;
+        if (!donorFulfilledByReq[reqId]) {
+          donorFulfilledByReq[reqId] = {
+            bloodType: bType,
+            quantityNeeded: r.bloodRequest.quantityNeeded || 1,
+            count: 0
+          };
+        }
+        donorFulfilledByReq[reqId].count++;
+      });
+
+      // Filter accepted blood center responses for this week
+      const wCenterResponses = acceptedCenterResponses.filter((r) => {
+        const d = r.respondedAt || r.createdAt;
+        return d >= w.start && d <= w.end;
+      });
+
+      // Group blood center responses by request to avoid counting the same request more than once
+      const centerFulfilledByReq = {};
+      wCenterResponses.forEach((r) => {
+        if (!r.request) return;
+        const reqId = r.request._id.toString();
+        const bType = r.request.bloodType;
+        if (!centerFulfilledByReq[reqId]) {
+          centerFulfilledByReq[reqId] = {
+            bloodType: bType,
+            quantityNeeded: r.request.quantityNeeded || 1
+          };
+        }
+      });
+
+      const byBloodType = {};
+      for (const bt of VALID_BLOOD_TYPES) {
+        const donorUnits = wDonor
+          .filter((r) => r.bloodType === bt)
+          .reduce((acc, r) => acc + (r.quantityNeeded || 0), 0);
+        const centerUnits = wCenter
+          .filter((r) => r.bloodType === bt)
+          .reduce((acc, r) => acc + (r.quantityNeeded || 0), 0);
+        const donorFulfilled = Object.values(donorFulfilledByReq)
+          .filter((item) => item.bloodType === bt)
+          .reduce((acc, item) => acc + Math.min(item.count, item.quantityNeeded), 0);
+        const centerFulfilled = Object.values(centerFulfilledByReq)
+          .filter((item) => item.bloodType === bt)
+          .reduce((acc, item) => acc + item.quantityNeeded, 0);
+
+        let supplyUnits = 0;
+        if (wSnaps.length > 0) {
+          const hospitalLatest = {};
+          for (const snap of wSnaps) {
+            if (snap.bloodType === bt) {
+              const hId = snap.hospital.toString();
+              if (!hospitalLatest[hId] || hospitalLatest[hId].recordedAt < snap.recordedAt) {
+                hospitalLatest[hId] = snap;
+              }
+            }
+          }
+          supplyUnits = Object.values(hospitalLatest).reduce((acc, s) => acc + (s.availableUnits || 0), 0);
+        } else if (isCurrentWeek) {
+          supplyUnits = approvedHospitals.reduce((acc, h) => {
+            const item = (h.bloodStock || []).find((b) => b.bloodType === bt);
+            return acc + (item ? (item.availableUnits || 0) : 0);
+          }, 0);
+        }
+
+        byBloodType[bt] = {
+          demand: donorUnits + centerUnits,
+          donorDemand: donorUnits,
+          bloodCenterDemand: centerUnits,
+          fulfilledDemand: donorFulfilled + centerFulfilled,
+          supply: supplyUnits
+        };
+      }
+
+      const totalDemand = Object.values(byBloodType).reduce((acc, b) => acc + b.demand, 0);
+      const totalDonorDemand = Object.values(byBloodType).reduce((acc, b) => acc + b.donorDemand, 0);
+      const totalBloodCenterDemand = Object.values(byBloodType).reduce((acc, b) => acc + b.bloodCenterDemand, 0);
+      const totalFulfilled = Object.values(byBloodType).reduce((acc, b) => acc + b.fulfilledDemand, 0);
+      const totalSupply = Object.values(byBloodType).reduce((acc, b) => acc + b.supply, 0);
+
+      return {
+        week: w.startDate,
+        weekLabel: w.weekLabel,
+        demand: totalDemand,
+        donorDemand: totalDonorDemand,
+        bloodCenterDemand: totalBloodCenterDemand,
+        fulfilledDemand: totalFulfilled,
+        supply: totalSupply,
+        byBloodType
+      };
+    });
 
     const topHospitals = (liveFacet.topHospitals || []).map((h) => ({
       id: h._id.toString(),
@@ -389,6 +566,9 @@ async function getHospitalAnalytics(req, res, next) {
           totalUnits: nationalTotalUnits,
           byBloodType: nationalByBloodType
         },
+        needVsSupply,
+        weeklyNeedVsSupply,
+        nationalNeed: nationalNeedByBloodType,
         topHospitals,
         bottomHospitals,
         trends: {
@@ -398,6 +578,9 @@ async function getHospitalAnalytics(req, res, next) {
       },
       data: {
         nationalTotals: nationalByBloodType,
+        nationalNeed: nationalNeedByBloodType,
+        needVsSupply,
+        weeklyNeedVsSupply,
         topHospitals,
         bottomHospitals,
         trends: last30Days.map((t) => ({ date: t.date, ...t.byBloodType }))

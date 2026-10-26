@@ -165,6 +165,7 @@ router.get('/admins', verifyToken, requireRole('superadmin'), superAdminControll
  *         description: Admin not found
  */
 router.delete('/admins/:id', verifyToken, requireRole('superadmin'), superAdminController.deleteAdmin);
+router.patch('/admins/:id/permissions', verifyToken, requireRole('superadmin'), superAdminController.updateAdminPermissions);
 
 /**
  * @swagger

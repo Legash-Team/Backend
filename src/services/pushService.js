@@ -64,4 +64,69 @@ async function sendBloodAlert(pushToken, { requestId, hospitalName, bloodType, q
   }
 }
 
-module.exports = { sendBloodAlert };
+async function sendDonationThankYou(pushToken, { donationDate, nextEligibilityDate, donorId }) {
+  initFirebase();
+  if (!pushToken || !admin.apps || !admin.apps.length) return null;
+
+  const dDate = new Date(donationDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const eDate = new Date(nextEligibilityDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  const payload = {
+    notification: {
+      title: 'Thank You for Donating Blood!',
+      body: `Thank you for donating blood on ${dDate}. Your next eligibility date is ${eDate}. You will not receive new blood donation requests during this 90-day recovery period. Thank you for helping save lives.`,
+    },
+    data: {
+      type: 'DONATION_RECORDED',
+      donationDate: String(donationDate),
+      nextEligibilityDate: String(nextEligibilityDate),
+    },
+  };
+
+  try {
+    const response = await admin.messaging().send({
+      token: pushToken,
+      ...payload,
+    });
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`[FCM PUSH] Sent donation thank-you to token ${pushToken.slice(0, 10)}... (ID: ${response})`);
+    }
+    return response;
+  } catch (error) {
+    console.error('Firebase Push Error (Donation Thank-You):', error);
+    return null;
+  }
+}
+
+async function sendDidNotDonateEncouragement(pushToken, { hospitalName }) {
+  initFirebase();
+  if (!pushToken || !admin.apps || !admin.apps.length) return null;
+
+  const hName = hospitalName || 'the hospital';
+  const payload = {
+    notification: {
+      title: 'Thank You for Your Willingness to Help!',
+      body: `Thank you for taking the time to respond to ${hName}. Even though you couldn't donate this time, your support means the world to us and we hope to see you another time!`,
+    },
+    data: {
+      type: 'DID_NOT_DONATE_ENCOURAGEMENT',
+    },
+  };
+
+  try {
+    const response = await admin.messaging().send({
+      token: pushToken,
+      ...payload,
+    });
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`[FCM PUSH] Sent encouraging did-not-donate notification to token ${pushToken.slice(0, 10)}... (ID: ${response})`);
+    }
+    return response;
+  } catch (error) {
+    console.error('Firebase Push Error (Did Not Donate):', error);
+    return null;
+  }
+}
+
+module.exports = { sendBloodAlert, sendDonationThankYou, sendDidNotDonateEncouragement };
+

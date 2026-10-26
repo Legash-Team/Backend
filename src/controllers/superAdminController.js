@@ -467,10 +467,63 @@ exports.deleteAdmin = async (req, res, next) => {
     if (!admin) {
       return res.status(404).json({ success: false, error: 'Admin not found.' });
     }
-    admin.isDeleted = true;
-    await admin.save();
+    await Event.deleteMany({ createdBy: admin._id, creatorModel: 'Admin' });
+    await Admin.findByIdAndDelete(admin._id);
     return res.status(200).json({ success: true, message: 'Admin deleted successfully.' });
   } catch (error) {
     next(error);
   }
 };
+
+exports.updateAdminPermissions = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const permissions = req.body.permissions || req.body;
+
+    if (!permissions || typeof permissions !== 'object') {
+      return res.status(400).json({
+        success: false,
+        error: 'Permissions object is required.'
+      });
+    }
+
+    const admin = await Admin.findOne({ _id: id, isDeleted: { $ne: true } });
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        error: 'Admin not found.'
+      });
+    }
+
+    const currentPermissions = admin.permissions || {};
+    const updatedPermissions = {
+      canApproveHospitals:
+        typeof permissions.canApproveHospitals === 'boolean'
+          ? permissions.canApproveHospitals
+          : currentPermissions.canApproveHospitals ?? false,
+      canPostEvents:
+        typeof permissions.canPostEvents === 'boolean'
+          ? permissions.canPostEvents
+          : currentPermissions.canPostEvents ?? false
+    };
+
+    admin.permissions = updatedPermissions;
+    await admin.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Admin permissions updated successfully.',
+      admin: {
+        id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        permissions: admin.permissions,
+        emailVerified: admin.emailVerified,
+        createdAt: admin.createdAt
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

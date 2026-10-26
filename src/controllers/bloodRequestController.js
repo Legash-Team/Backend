@@ -104,15 +104,27 @@ exports.list = async (req, res, next) => {
 
     const results = await Promise.all(
       requests.map(async (reqDoc) => {
-        const responses = await BloodRequestResponse.find({ bloodRequest: reqDoc._id });
+        const responses = await BloodRequestResponse.find({ bloodRequest: reqDoc._id }).populate('donor', 'isDeleted');
         let acceptedCount = 0;
         let deniedCount = 0;
         let pendingCount = 0;
+        let validDonorCount = 0;
+        const orphanedResponseIds = [];
 
         for (const response of responses) {
+          if (!response.donor || response.donor.isDeleted) {
+            orphanedResponseIds.push(response._id);
+            continue;
+          }
+
+          validDonorCount++;
           if (response.status === 'accepted') acceptedCount++;
           else if (response.status === 'denied') deniedCount++;
           else pendingCount++;
+        }
+
+        if (orphanedResponseIds.length > 0) {
+          await BloodRequestResponse.deleteMany({ _id: { $in: orphanedResponseIds } }).catch(() => {});
         }
 
         return {
@@ -126,7 +138,7 @@ exports.list = async (req, res, next) => {
           createdAt: reqDoc.createdAt,
           closesAt: reqDoc.closesAt,
           closedAt: reqDoc.closedAt,
-          notifiedDonorCount: responses.length,
+          notifiedDonorCount: validDonorCount,
           acceptedCount,
           deniedCount,
           pendingCount,
@@ -149,16 +161,22 @@ exports.getResponses = async (req, res, next) => {
 
     const responses = await BloodRequestResponse.find({ bloodRequest: request._id }).populate(
       'donor',
-      'name gender bloodType shortId phone'
+      'name gender bloodType shortId phone isDeleted'
     );
 
     const accepted = [];
     let deniedCount = 0;
     let pendingCount = 0;
+    const orphanedResponseIds = [];
 
     for (const response of responses) {
+      if (!response.donor || response.donor.isDeleted) {
+        orphanedResponseIds.push(response._id);
+        continue;
+      }
+
       if (response.status === 'accepted') {
-        if (response.donor) {
+        if (response.donationOutcome !== 'did_not_donate') {
           accepted.push({
             id: response.donor._id,
             donorId: response.donor.shortId || response.donor._id,
@@ -175,6 +193,10 @@ exports.getResponses = async (req, res, next) => {
       } else {
         pendingCount++;
       }
+    }
+
+    if (orphanedResponseIds.length > 0) {
+      await BloodRequestResponse.deleteMany({ _id: { $in: orphanedResponseIds } }).catch(() => {});
     }
 
     return res.status(200).json({

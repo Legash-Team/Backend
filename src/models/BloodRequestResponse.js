@@ -4,6 +4,7 @@ const bloodRequestResponseSchema = new mongoose.Schema({
   bloodRequest: { type: mongoose.Schema.Types.ObjectId, ref: 'BloodRequest', required: true },
   donor: { type: mongoose.Schema.Types.ObjectId, ref: 'Donor', required: true },
   status: { type: String, enum: ['pending', 'accepted', 'denied'], default: 'pending' },
+  donationOutcome: { type: String, enum: ['donated', 'did_not_donate', null], default: null },
   notifiedAt: { type: Date, default: Date.now },
   respondedAt: { type: Date, default: null },
 }, { timestamps: true });
