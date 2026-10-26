@@ -99,7 +99,7 @@ exports.login = async (req, res, next) => {
 
     // 3. Check Admin Account
     if (admin) {
-      if (!admin.emailVerified || !admin.passwordHash) {
+      if (!admin.passwordHash) {
         return res.status(401).json({
           success: false,
           error: 'Invalid email or password.'
@@ -114,22 +114,31 @@ exports.login = async (req, res, next) => {
         });
       }
 
+      if (!admin.emailVerified) {
+        admin.emailVerified = true;
+        await admin.save().catch(() => {});
+      }
+
+      const resolvedRole = admin.role || 'admin';
       const token = generateToken({
         id: admin._id,
-        role: 'admin',
+        role: resolvedRole,
+        centerName: admin.centerName || undefined,
         permissions: admin.permissions
       });
 
       return res.status(200).json({
         success: true,
         token,
-        role: 'admin',
+        role: resolvedRole,
         permissions: admin.permissions,
         user: {
           id: admin._id.toString(),
           name: admin.name,
           centerName: admin.centerName || undefined,
-          email: admin.email
+          email: admin.email,
+          role: resolvedRole,
+          permissions: admin.permissions
         }
       });
     }
@@ -137,6 +146,45 @@ exports.login = async (req, res, next) => {
     return res.status(401).json({
       success: false,
       error: 'Invalid email or password.'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getAdminSetupContext = async (req, res, next) => {
+  try {
+    const rawToken = req.query.setupToken || req.query.token;
+    if (!rawToken || typeof rawToken !== 'string' || !rawToken.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid or expired setup token.'
+      });
+    }
+
+    const cleanToken = rawToken.trim();
+    const admin = await Admin.findOne({
+      setupToken: cleanToken,
+      setupTokenExpiresAt: { $gt: new Date() },
+      passwordHash: null,
+      isDeleted: { $ne: true }
+    });
+
+    if (!admin) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid or expired setup token.'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        email: admin.email,
+        name: admin.name || admin.centerName || '',
+        centerName: admin.centerName || '',
+        role: admin.role || 'admin'
+      }
     });
   } catch (error) {
     next(error);
@@ -461,6 +509,72 @@ exports.resetPassword = async (req, res, next) => {
       success: false,
       error: 'Invalid or expired reset code.'
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getMe = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, error: 'Authentication required.' });
+    }
+
+    if (req.user.role === 'superadmin') {
+      const superAdmin = await SuperAdmin.findById(req.user.id || req.user._id).select('-passwordHash');
+      return res.status(200).json({
+        success: true,
+        role: 'superadmin',
+        permissions: { canApproveHospitals: true, canPostEvents: true },
+        user: {
+          id: superAdmin?._id || req.user.id,
+          name: superAdmin?.name || 'Super Admin',
+          email: superAdmin?.email || req.user.email,
+        }
+      });
+    }
+
+    if (req.user.role === 'admin' || req.user.role === 'bloodcenter') {
+      const admin = await Admin.findOne({ _id: req.user.id || req.user._id, isDeleted: { $ne: true } }).select('-passwordHash');
+      if (!admin) {
+        return res.status(404).json({ success: false, error: 'User not found.' });
+      }
+      return res.status(200).json({
+        success: true,
+        role: 'admin',
+        permissions: admin.permissions || { canApproveHospitals: false, canPostEvents: Boolean(admin.centerName) },
+        user: {
+          id: admin._id,
+          name: admin.name,
+          centerName: admin.centerName || undefined,
+          email: admin.email,
+          phone: admin.phone,
+          location: admin.location,
+        }
+      });
+    }
+
+    if (req.user.role === 'hospital') {
+      const hospital = await Hospital.findOne({ _id: req.user.id || req.user._id, isDeleted: { $ne: true } }).select('-passwordHash');
+      if (!hospital) {
+        return res.status(404).json({ success: false, error: 'Hospital not found.' });
+      }
+      return res.status(200).json({
+        success: true,
+        role: 'hospital',
+        user: {
+          id: hospital._id,
+          name: hospital.hospitalName || hospital.name,
+          email: hospital.email,
+          phone: hospital.phone,
+          licenseNumber: hospital.licenseNumber,
+          verificationStatus: hospital.verificationStatus,
+          location: hospital.location,
+        }
+      });
+    }
+
+    return res.status(200).json({ success: true, user: req.user });
   } catch (error) {
     next(error);
   }

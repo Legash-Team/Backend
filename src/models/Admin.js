@@ -43,6 +43,10 @@ const adminSchema = new mongoose.Schema(
       trim: true,
       default: null
     },
+    role: {
+      type: String,
+      default: 'admin'
+    },
     phone: {
       type: String,
       trim: true,

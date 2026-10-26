@@ -29,14 +29,20 @@ const requirePermission = (permissionName) => async (req, res, next) => {
       });
     }
 
-    // Check if permission is present directly on req.user (e.g. from decoded token)
-    if (req.user.permissions && req.user.permissions[permissionName] === true) {
+    // Authoritative check against database; fall back to req.user.permissions for unit tests / decoded tokens
+    const admin = await Admin.findById(req.user.id || req.user._id);
+    const permissions = admin ? admin.permissions : req.user.permissions;
+
+    if (admin) {
+      req.user.permissions = admin.permissions;
+    }
+
+    // Blood centers can post events by default
+    if (permissionName === 'canPostEvents' && (req.user.centerName || admin?.centerName || permissions?.canPostEvents)) {
       return next();
     }
 
-    // Fallback to database check for fresh permissions
-    const admin = await Admin.findById(req.user.id || req.user._id);
-    if (!admin || !admin.permissions || !admin.permissions[permissionName]) {
+    if (!permissions || !permissions[permissionName]) {
       return res.status(403).json({
         success: false,
         error: 'You do not have permission to perform this action.'

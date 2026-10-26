@@ -74,4 +74,64 @@ async function sendBloodAlertSms(phone, { hospitalName, bloodType, quantityNeede
   }
 }
 
-module.exports = { sendOtp, verifyOtp, sendBloodAlertSms };
+async function sendDonationThankYouSms(phone, { donationDate, nextEligibilityDate }) {
+  if (!phone) return;
+  const dDate = new Date(donationDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const eDate = new Date(nextEligibilityDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const message = `Thank you for donating blood on ${dDate}. Your next eligibility date is ${eDate}. You will not receive new blood donation requests during this 90-day recovery period. Thank you for helping save lives.`;
+
+  if (process.env.NODE_ENV === 'test' || !process.env.SMS_GATEWAY_BASE_URL || process.env.SMS_GATEWAY_BASE_URL.includes('example')) {
+    console.log(`\n[SMS MOCK] Donation Thank-You sent to ${phone}: ${message}\n`);
+    return;
+  }
+
+  try {
+    const response = await fetch(`${process.env.SMS_GATEWAY_BASE_URL}/api/v1/sms/send`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.SMS_GATEWAY_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ phone, message }),
+    });
+    if (!response.ok) {
+      console.error(`SMS gateway error for ${phone}: ${response.status}`);
+    } else if (process.env.NODE_ENV !== 'test') {
+      console.log(`[SMS ALERT] Donation thank-you SMS sent to ${phone}`);
+    }
+  } catch (error) {
+    console.error(`SMS dispatch error for ${phone}:`, error.message);
+  }
+}
+
+async function sendDidNotDonateEncouragementSms(phone, { hospitalName }) {
+  if (!phone) return;
+  const hName = hospitalName || 'the hospital';
+  const message = `Legash: Thank you for responding to ${hName}. Even though you couldn't donate this time, your willingness to help is deeply appreciated and we hope to see you another time!`;
+
+  if (process.env.NODE_ENV === 'test' || !process.env.SMS_GATEWAY_BASE_URL || process.env.SMS_GATEWAY_BASE_URL.includes('example')) {
+    console.log(`\n[SMS MOCK] Did Not Donate Encouragement sent to ${phone}: ${message}\n`);
+    return;
+  }
+
+  try {
+    const response = await fetch(`${process.env.SMS_GATEWAY_BASE_URL}/api/v1/sms/send`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.SMS_GATEWAY_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ phone, message }),
+    });
+    if (!response.ok) {
+      console.error(`SMS gateway error for ${phone}: ${response.status}`);
+    } else if (process.env.NODE_ENV !== 'test') {
+      console.log(`[SMS ALERT] Did Not Donate Encouragement SMS sent to ${phone}`);
+    }
+  } catch (error) {
+    console.error(`SMS dispatch error for ${phone}:`, error.message);
+  }
+}
+
+module.exports = { sendOtp, verifyOtp, sendBloodAlertSms, sendDonationThankYouSms, sendDidNotDonateEncouragementSms };
+

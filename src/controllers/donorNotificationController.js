@@ -37,21 +37,37 @@ exports.list = async (req, res, next) => {
         },
       });
 
-    const notifications = responses.map((r) => {
+    // Filter out responses whose parent bloodRequest was deleted
+    const validResponses = responses.filter((r) => r.bloodRequest != null);
+
+    const notifications = validResponses.map((r) => {
       const parentReq = r.bloodRequest;
       const hospital = parentReq?.hospital;
+      const isEmergency = parentReq?.isEmergency || false;
+      const title = isEmergency ? 'Urgent Blood Alert' : 'Blood Donation Request';
+      const hospitalName = hospital?.hospitalName || 'Hospital';
+      const bloodType = parentReq?.bloodType || 'blood';
+      const message = `${hospitalName} requested ${parentReq?.quantityNeeded ? parentReq.quantityNeeded + ' unit(s) of ' : ''}${bloodType} blood. Tap to respond.`;
+
       return {
         id: r._id,
-        hospitalName: hospital?.hospitalName || 'Unknown Hospital',
+        title,
+        message,
+        body: message,
+        category: isEmergency ? 'Emergency' : 'Request',
+        type: 'BLOOD_REQUEST',
+        requestId: parentReq?._id || null,
+        hospitalName,
         hospitalPhone: hospital?.phone || '',
         hospitalLocation: hospital?.location || null,
         bloodType: parentReq?.bloodType || 'Unknown',
         quantityNeeded: parentReq?.quantityNeeded || 0,
-        isEmergency: parentReq?.isEmergency || false,
+        isEmergency,
         description: parentReq?.description || '',
         myResponseStatus: r.status,
         requestStatus: parentReq?.status || 'closed',
-        notifiedAt: r.notifiedAt,
+        notifiedAt: r.notifiedAt || r.createdAt,
+        timestamp: r.notifiedAt || r.createdAt,
         closesAt: parentReq?.closesAt || null,
       };
     });

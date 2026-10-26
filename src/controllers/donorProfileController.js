@@ -1,6 +1,9 @@
 // Backend/src/controllers/donorProfileController.js
 const Donor = require('../models/Donor');
 const Hospital = require('../models/Hospital');
+const Admin = require('../models/Admin');
+const BloodRequestResponse = require('../models/BloodRequestResponse');
+const DonationRecord = require('../models/DonationRecord');
 const { hashPassword, comparePassword } = require('../utils/hashPassword');
 const { sendOtp, verifyOtp } = require('../services/smsService');
 const { VALID_BLOOD_TYPES } = require('../utils/bloodCompatibility');
@@ -34,6 +37,7 @@ exports.getProfile = async (req, res, next) => {
         weightKg: donor.weightKg,
         heightCm: donor.heightCm,
         healthNotes: donor.healthNotes || '',
+        lastDonatedAt: donor.lastDonatedAt || null,
       },
     });
   } catch (error) {
@@ -86,6 +90,7 @@ exports.updateProfile = async (req, res, next) => {
         weightKg: donor.weightKg,
         heightCm: donor.heightCm,
         healthNotes: donor.healthNotes || '',
+        lastDonatedAt: donor.lastDonatedAt || null,
       },
     });
   } catch (error) {
@@ -191,19 +196,39 @@ exports.changePin = async (req, res, next) => {
 
 exports.deleteAccount = async (req, res, next) => {
   try {
-    const donor = await Donor.findById(req.user.id);
+    const donorId = req.user.id || req.user._id;
+    const donor = await Donor.findOne({ _id: donorId, isDeleted: { $ne: true } });
     if (!donor) {
       return res.status(404).json({ success: false, error: 'Donor not found.' });
     }
 
-    donor.isDeleted = true;
-    donor.phone = `${donor.phone}_deleted_${Date.now()}`;
-    donor.fin = `${donor.fin}_deleted_${Date.now()}`;
-    await donor.save();
+    // 1. Delete all donor-specific responses and notification records
+    // This removes donor from hospital confirmation queues, pending alerts, and notification history
+    await BloodRequestResponse.deleteMany({ donor: donor._id });
+
+    // 2. Anonymize completed donation records for hospital operational & audit retention:
+    // Unlink donor reference and scrub any personal notes / messages so no donor PII remains accessible
+    await DonationRecord.updateMany(
+      { donor: donor._id },
+      {
+        $set: {
+          donor: null,
+          thankYouMessage: null,
+          notes: null,
+          healthIssues: null,
+        },
+      }
+    );
+
+    // 3. Remove non-completed donation records if any exist
+    await DonationRecord.deleteMany({ donor: donor._id, outcome: { $ne: 'donated' } });
+
+    // 4. Permanent hard delete of the donor profile, credentials, and account
+    await Donor.findByIdAndDelete(donor._id);
 
     return res.status(200).json({
       success: true,
-      message: 'Account deleted successfully.',
+      message: 'Account and associated personal data deleted successfully.',
     });
   } catch (error) {
     next(error);
@@ -214,6 +239,10 @@ exports.getBloodCenters = async (req, res, next) => {
   try {
     const donor = await Donor.findById(req.user.id);
     let centers = [];
+    const centerFilter = {
+      centerName: { $exists: true, $ne: null },
+      isDeleted: { $ne: true },
+    };
 
     if (
       donor &&
@@ -222,43 +251,38 @@ exports.getBloodCenters = async (req, res, next) => {
       donor.location.coordinates.length === 2
     ) {
       try {
-        centers = await Hospital.find({
-          verificationStatus: 'approved',
-          isDeleted: { $ne: true },
+        centers = await Admin.find({
+          ...centerFilter,
           location: {
             $near: {
               $geometry: donor.location,
               $maxDistance: 100000, // 100 km radius
             },
           },
-        }).select('hospitalName phone email location');
+        }).select('name centerName phone email location');
       } catch (_) {
-        // Fall back to standard query if geospatial index query encounters issues
         centers = [];
       }
     }
 
     if (!centers || centers.length === 0) {
-      centers = await Hospital.find({
-        verificationStatus: 'approved',
-        isDeleted: { $ne: true },
-      })
-        .select('hospitalName phone email location')
+      centers = await Admin.find(centerFilter)
+        .select('name centerName phone email location')
         .limit(30);
     }
 
-    const formattedCenters = centers.map((h) => {
-      const hasCoords = Array.isArray(h.location?.coordinates) && h.location.coordinates.length === 2;
-      const lng = hasCoords ? h.location.coordinates[0] : null;
-      const lat = hasCoords ? h.location.coordinates[1] : null;
-      const mapsUrl = generateMapsUrl(h.location);
+    const formattedCenters = centers.map((c) => {
+      const hasCoords = Array.isArray(c.location?.coordinates) && c.location.coordinates.length === 2;
+      const lng = hasCoords ? c.location.coordinates[0] : null;
+      const lat = hasCoords ? c.location.coordinates[1] : null;
+      const mapsUrl = generateMapsUrl(c.location);
 
       return {
-        id: h._id,
-        name: h.hospitalName,
-        phone: h.phone,
-        email: h.email,
-        address: h.location?.address || '',
+        id: c._id,
+        name: c.centerName || c.name,
+        phone: c.phone || '',
+        email: c.email,
+        address: c.location?.address || '',
         lat,
         lng,
         mapsUrl,

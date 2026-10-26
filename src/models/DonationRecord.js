@@ -17,7 +17,7 @@ const donationRecordSchema = new mongoose.Schema(
     donor: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Donor',
-      required: true
+      default: null
     },
     hospital: {
       type: mongoose.Schema.Types.ObjectId,

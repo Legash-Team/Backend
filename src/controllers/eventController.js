@@ -21,14 +21,29 @@ exports.listEvents = async (req, res, next) => {
 exports.listPublicEvents = async (req, res, next) => {
   try {
     const now = new Date();
-    // Return only active, unexpired events for donor feed
-    const events = await Event.find({
-      closesAt: { $gt: now },
-    })
+    const { status } = req.query;
+
+    let query = {};
+    if (status === 'closed') {
+      query = {
+        $or: [{ status: 'closed' }, { closesAt: { $lte: now } }],
+      };
+    } else if (status === 'all') {
+      query = {};
+    } else {
+      // Default or status='active': only open, unexpired events for public donor feed
+      query = {
+        closesAt: { $gt: now },
+        status: { $ne: 'closed' },
+      };
+    }
+
+    const events = await Event.find(query)
       .sort({ createdAt: -1 })
       .populate('createdBy', 'name centerName');
 
     const formattedEvents = events.map((event) => {
+      const isClosed = event.status === 'closed' || (event.closesAt && new Date(event.closesAt) <= now);
       const item = {
         id: event._id,
         title: event.title || 'Legash Blood Donation Event',
@@ -37,7 +52,8 @@ exports.listPublicEvents = async (req, res, next) => {
         description: event.description,
         applyLink: event.applyLink,
         closesAt: event.closesAt,
-        status: 'open',
+        createdAt: event.createdAt,
+        status: isClosed ? 'closed' : 'open',
       };
 
       if (event.creatorModel === 'Admin') {

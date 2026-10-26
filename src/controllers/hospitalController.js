@@ -1,5 +1,6 @@
 // Backend/src/controllers/hospitalController.js
 const Hospital = require('../models/Hospital');
+const BloodRequest = require('../models/BloodRequest');
 const { sendVerificationEmail } = require('../services/emailService');
 const { hashPassword, comparePassword } = require('../utils/hashPassword');
 const { VALID_BLOOD_TYPES } = require('../utils/bloodCompatibility');
@@ -206,11 +207,11 @@ exports.deleteAccount = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Hospital not found.' });
     }
 
-    hospital.isDeleted = true;
-    hospital.email = `${hospital.email}_deleted_${Date.now()}`;
-    hospital.phone = `${hospital.phone}_deleted_${Date.now()}`;
-    hospital.licenseNumber = `${hospital.licenseNumber}_deleted_${Date.now()}`;
-    await hospital.save();
+    // Clean up hospital-owned blood requests
+    await BloodRequest.deleteMany({ hospital: hospital._id });
+
+    // Permanent hard delete of hospital document
+    await Hospital.findByIdAndDelete(hospital._id);
 
     return res.status(200).json({
       success: true,
@@ -449,19 +450,20 @@ exports.searchHospitals = async (req, res, next) => {
 
     // Find all approved hospitals that are not deleted and not the current hospital
     const query = {
-      _id: { $ne: req.user.id },
       verificationStatus: 'approved',
       isDeleted: { $ne: true },
       'bloodStock.bloodType': bloodType,
     };
 
-    // If a minimum quantity was specified, we can query hospitals that have some stock
-    // But since the requirement says "a hospital with fewer kits than requested can still appear in results",
-    // we query hospitals where availableUnits > 0.
+    if (req.user && (req.user.id || req.user._id)) {
+      query._id = { $ne: req.user.id || req.user._id };
+    }
+
+    // Authoritative quantity requirement: exclude any hospital with fewer available units than requested
     query['bloodStock'] = {
       $elemMatch: {
         bloodType,
-        availableUnits: { $gt: 0 },
+        availableUnits: { $gte: minQty > 0 ? minQty : 1 },
       },
     };
 
@@ -472,7 +474,16 @@ exports.searchHospitals = async (req, res, next) => {
       const lng = h.location?.coordinates?.[0] ?? null;
       const mapsUrl = generateMapsUrl(h.location);
 
-      return {
+      const matchingStock = (h.bloodStock || []).find((b) => b.bloodType === bloodType);
+      const stockQuantity = matchingStock ? (matchingStock.availableUnits || 0) : 0;
+
+      const availableStock = {};
+      (h.bloodStock || []).forEach((b) => {
+        availableStock[b.bloodType] = b.availableUnits || 0;
+      });
+
+      const canViewLicense = Boolean(req.user && ['superadmin', 'admin'].includes(req.user.role));
+      const resultObj = {
         id: h._id,
         name: h.hospitalName || h.name,
         email: h.email,
@@ -484,10 +495,18 @@ exports.searchHospitals = async (req, res, next) => {
           mapsUrl,
         },
         mapsUrl,
-        // We do NOT expose the exact availableUnits to prevent data leakage!
-        // Just return that it is in stock or available.
-        hasStock: true,
+        bloodType,
+        stockQuantity,
+        availableUnits: stockQuantity,
+        availableStock,
+        hasStock: stockQuantity >= (minQty > 0 ? minQty : 1),
       };
+
+      if (canViewLicense) {
+        resultObj.licenseNumber = h.licenseNumber || h.license_number;
+      }
+
+      return resultObj;
     });
 
     return res.status(200).json({

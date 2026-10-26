@@ -49,7 +49,7 @@ const eventSchema = new mongoose.Schema(
 );
 
 eventSchema.pre('save', function (next) {
-  if (this.closesAt && new Date(this.closesAt) <= new Date()) {
+  if (this.status === 'closed' || (this.closesAt && new Date(this.closesAt) <= new Date())) {
     this.status = 'closed';
   } else {
     this.status = 'open';
