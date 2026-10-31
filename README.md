@@ -10,7 +10,7 @@ This repository, **legash-backend**, contains the server-side application that p
 
 **Project:** Legash — Smart Blood Donation Management System
 
-**Repository:** `legash-backend`
+**Repository:** `Legash-Team/Backend`
 
 **Architecture:** RESTful API with a modular server-side architecture.
 
