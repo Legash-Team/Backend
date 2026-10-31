@@ -18,6 +18,14 @@ This repository, **legash-backend**, contains the server-side application that p
 
 ---
 
+## Contributors
+
+- Firaol — CTC-777-26
+- Estifanos — CTC-1038-26
+- Eyerusalem — CTC-4210-26
+
+---
+
 ## Tech Stack
 
 - **Node.js** — JavaScript runtime
@@ -210,9 +218,3 @@ The CI workflow includes:
 4. Running automated backend unit and integration tests.
 
 ---
-
-## Contributors
-
-- Firaol
-- Estifanos
-- Eyerusalem
