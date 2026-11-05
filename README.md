@@ -18,11 +18,58 @@ This repository, **legash-backend**, contains the server-side application that p
 
 ---
 
-## Contributors
 
-- Firaol — CTC-777-26
-- Estifanos — CTC-1038-26
-- Eyerusalem — CTC-4210-26
+# Legash Project Team
+
+The Legash project was developed by a team of engineers working across backend, web frontend, mobile, and cloud infrastructure.
+
+| Team Member | CTC ID | Role | Main Contribution |
+|---|---|---|---|
+| Firaol Abera | CTC-777-26 | Full-Stack & Cloud Gateways Lead | Led full-stack architecture, notification pipelines, email and push notifications, media integration, event publishing, and Docker infrastructure. |
+| Estifanos | CTC-1038-26 | Backend Core & Clinical Business Logic | Worked on blood compatibility matching, the 90-day donation eligibility rule, donor Short IDs, hospital intake, donation records, and automated testing. |
+| Eyerusalem Gebrat | CTC-4210-26 | Backend Core & Inter-Facility Logistics | Worked on blood center requisition workflows, donation record APIs, modular backend routing, hospital stock analytics, and blood center onboarding. |
+| Hanan Seid Mohammed | CTC-3381-26 | Web Frontend Lead & Design Systems | Led the React and TypeScript frontend architecture, dashboard design, localization, hospital records, donor intake, and role-based access control. |
+| Enkumariam Dejene Tegen | CTC-551-26 | Web Applications Engineer | Worked on hospital registration, onboarding, blood stock management, blood requisitions, facility profiles, and frontend layout components. |
+| Firaol Tsegaye | CTC-7007-26 | Mobile Subsystem Engineer | Worked on Flutter donor onboarding, profile Short ID display, event feed and event details, media playback, and network error handling. |
+| Falmi Abdi | CTC-927-26 | Mobile Subsystem Engineer | Worked on Afaan Oromoo localization, nearby blood center discovery, distance calculations, donor statistics, and notification center functionality. |
+
+---
+
+## Project Submission
+
+The following materials provide the project documentation, presentation, and demonstration.
+
+| Submission Material | Link |
+|---|---|
+| 5-Minute Video Presentation | [Watch Video Presentation](https://www.awesomescreenshot.com/video/58110191?key=7341965dd94802f257e42297911a68dd) |
+| Project Documentation (PDF) | [View Project PDF](https://drive.google.com/file/d/1UQ9ReVdnV4jWBQgBATKns4FrPhaQ2jI6/view?usp=sharing) |
+| Presentation Slides (PPT) | [View Presentation Slides](PPT_URL) |
+
+---
+
+### Main Features
+
+- **Donor Registration and Management:** Provides a registration and profile management system for blood donors. Donors can maintain their personal information, blood group, and relevant details, while the system keeps track of their donation history and eligibility status.
+
+- **Blood Requests and Intelligent Donor Matching:** Enables hospitals to create blood requests based on their requirements. The system identifies potential donors by considering ABO/Rh blood group compatibility, donor eligibility, and geographical proximity. It also applies a 90-day donation eligibility rule to prevent recently donated donors from being included in new matching processes.
+
+- **Hospital Blood Stock Management:** Allows hospitals to manage and monitor their blood inventory across the eight ABO/Rh blood groups. It supports stock updates, blood requisition management, and analytics that help hospitals understand their blood availability.
+
+- **Blood Center Coordination and Inter-Facility Requisitions:** Connects hospitals with nearby blood centers through a coordinated requisition workflow. Hospitals can identify nearby centers, submit blood requests, and coordinate the transfer of blood supplies between facilities.
+
+- **Notifications and Communication:** Keeps users informed about important activities through notification services, including email and push notifications. These notifications support communication around blood requests, donor matching, account-related activities, and other relevant system events.
+
+- **Blood Donation Campaigns and Events:** Supports the management and publishing of blood donation campaigns and events, helping users discover donation opportunities and stay informed about organized activities.
+
+- **Blood Center Posts and Community Updates:** Provides a way for verified blood centers to publish updates and information that can be shared with donors through the platform.
+
+- **Analytics and Reporting:** Provides hospital blood stock analytics and historical snapshots to help monitor inventory levels, understand stock trends, and support better coordination of blood resources.
+
+- **Web and Mobile Accessibility:** Offers a web application for administrative and hospital workflows, alongside a Flutter-based mobile application that provides donor-focused functionality such as onboarding, profiles, nearby blood center discovery, events, and notifications.
+
+### Project Goal
+
+The overall goal of Legash is to make blood donation and distribution more organized, accessible, and efficient by bringing donors, hospitals, and blood centers into one connected system. Through donor matching, inventory management, inter-facility coordination, and timely notifications, Legash aims to support better access to blood resources and improve coordination among the stakeholders involved in saving lives.
 
 ---
 
@@ -40,10 +87,13 @@ This repository, **legash-backend**, contains the server-side application that p
 - **Brevo** — Transactional email services
 - **Cloudinary** — Media storage and CDN integration
 
+---
+
 ## Engineering Team & Responsibilities
 
 The backend is developed through collaboration between three engineers, with responsibilities covering full-stack architecture and cloud integrations, core clinical business logic, and inter-facility blood logistics.
 
+### Backend Team
 ### 1. Firaol Abera
 
 <text weight="medium" color="secondary" size="sm">Full-Stack & Cloud Gateways Lead</text>
